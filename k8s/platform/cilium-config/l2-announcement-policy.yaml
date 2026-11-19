@@ -1,0 +1,11 @@
+---
+# Answer ARP for LoadBalancer IPs on the node NIC (Talos names it enp1s0 on these q35 VMs), so
+# OPNsense and the rest of the VPC can reach them. One node holds each IP's lease at a time.
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: private
+spec:
+  loadBalancerIPs: true
+  interfaces:
+    - ^enp[0-9]+s[0-9]+$

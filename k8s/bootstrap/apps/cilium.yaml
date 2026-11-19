@@ -1,0 +1,32 @@
+---
+# CNI, kube-proxy replacement, LB IPAM/L2 and Gateway API controller.
+# The chart version here is also what scripts/bootstrap-cluster.sh installs (single source).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cilium
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: default
+  sources:
+    - repoURL: https://helm.cilium.io
+      chart: cilium
+      targetRevision: 1.20.5
+      helm:
+        releaseName: cilium
+        valueFiles:
+          - $values/k8s/platform/cilium/values.yaml
+    - repoURL: git@github.com:nok500/homelab-cloud.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

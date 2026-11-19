@@ -1,0 +1,16 @@
+---
+# Argo CD (argo-helm chart). Installed once by scripts/bootstrap-cluster.sh, then manages itself
+# (k8s/bootstrap/apps/argocd.yaml). Served over the Cilium Gateway at argocd.lab.macpro.
+global:
+  domain: argocd.lab.macpro
+
+configs:
+  params:
+    # TLS terminates at the Gateway (cert-manager + step-ca in Phase 3); plain HTTP inside the cluster
+    server.insecure: true
+
+# Sized for 1 GiB nodes: no Dex (SSO comes with Keycloak in Phase 3), no notifications.
+dex:
+  enabled: false
+notifications:
+  enabled: false

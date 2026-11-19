@@ -1,0 +1,22 @@
+---
+# The lab's shared "ALB": one Cilium Gateway on a fixed LB IP. The home AdGuard has a single
+# DNS rewrite *.lab.macpro -> 10.10.1.200 (ADR 0004); routing is by hostname from here on.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: lab
+  namespace: gateway
+spec:
+  gatewayClassName: cilium
+  infrastructure:
+    annotations:
+      lbipam.cilium.io/ips: 10.10.1.200
+  listeners:
+    # HTTP only until Phase 3 (cert-manager + step-ca adds the HTTPS listener)
+    - name: http
+      protocol: HTTP
+      port: 80
+      hostname: "*.lab.macpro"
+      allowedRoutes:
+        namespaces:
+          from: All

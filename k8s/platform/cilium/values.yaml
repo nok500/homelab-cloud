@@ -1,0 +1,37 @@
+---
+# Cilium on Talos 1.14 (docs.siderolabs.com, "Deploying Cilium CNI", kube-proxy-free + KubePrism),
+# plus LB IPAM / L2 announcements (the "ELB") and the Gateway API controller (the "ALB").
+# Installed once by scripts/bootstrap-cluster.sh, then owned by Argo CD (k8s/bootstrap/apps/cilium.yaml).
+ipam:
+  mode: kubernetes
+kubeProxyReplacement: true
+# KubePrism: Talos' local API server load balancer on every node
+k8sServiceHost: localhost
+k8sServicePort: 7445
+securityContext:
+  capabilities:
+    ciliumAgent: [CHOWN, KILL, NET_ADMIN, NET_RAW, IPC_LOCK, SYS_ADMIN, SYS_RESOURCE, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    cleanCiliumState: [NET_ADMIN, SYS_ADMIN, SYS_RESOURCE]
+cgroup:
+  autoMount:
+    enabled: false
+  hostRoot: /sys/fs/cgroup
+
+# L2 announcements answer ARP for LoadBalancer IPs on the private subnet (pool in k8s/platform/cilium-config).
+l2announcements:
+  enabled: true
+# leader election for L2 leases is API-heavy; the Cilium docs recommend raising the client rate limit
+k8sClientRateLimit:
+  qps: 10
+  burst: 20
+
+gatewayAPI:
+  enabled: true
+
+# Sized for 1 GiB nodes (ADR 0002): one operator, no Hubble for now (Phase 4 observability).
+operator:
+  replicas: 1
+hubble:
+  enabled: false
+# restart agents when the config changes (Argo CD applies config changes via the ConfigMap)
+rollOutCiliumPods: true

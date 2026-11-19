@@ -1,0 +1,11 @@
+---
+# LoadBalancer IPs on the private subnet, outside the OPNsense DHCP pool (.100-.199) and the
+# node reservations (.20-.22). 10.10.1.200 is pinned to the shared Gateway (k8s/platform/gateway).
+apiVersion: cilium.io/v2
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: private
+spec:
+  blocks:
+    - start: 10.10.1.200
+      stop: 10.10.1.220

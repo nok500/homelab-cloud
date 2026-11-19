@@ -32,10 +32,13 @@ temps: ## Show lab host CPU temperatures and fan speed
 	scripts/host-temps.sh
 
 TF_HOST := terraform -chdir=terraform/host
+TF_TALOS := terraform -chdir=terraform/talos
 # AUTO_APPROVE=1 make up|destroy skips the interactive confirmation
 TF_APPROVE := $(if $(AUTO_APPROVE),-auto-approve,)
 LAB_CIDR := 10.10.0.0/16
 WAN_IP_FILE := .cache/host/opnsense-wan.ip
+export KUBECONFIG := $(CURDIR)/.cache/cluster/kubeconfig
+export TALOSCONFIG := $(CURDIR)/.cache/cluster/talosconfig
 
 .PHONY: images
 images: ## Download + verify VM base images into .cache/images
@@ -44,19 +47,31 @@ images: ## Download + verify VM base images into .cache/images
 .PHONY: init
 init:
 	$(TF_HOST) init -input=false
+	$(TF_TALOS) init -input=false
 
 .PHONY: plan
 plan: images init ## Terraform plan for the whole lab
 	$(TF_HOST) plan -input=false
+	$(TF_TALOS) plan -input=false
 
 .PHONY: up
-up: images init ## Build the lab: VPC networks, OPNsense, test VM (Phase 2+ adds the cluster)
+up: host cluster ## Build everything: VPC + OPNsense + Talos VMs, then the cluster (Cilium, Argo CD)
+
+.PHONY: host
+host: images init ## VPC networks, OPNsense, Talos VMs (terraform/host)
 	$(TF_HOST) apply -input=false $(TF_APPROVE)
-	@echo "OPNsense WAN: $$(cat $(WAN_IP_FILE))   next: make route && make verify"
+	@echo "OPNsense WAN: $$(cat $(WAN_IP_FILE))   (make route once per workstation boot)"
+
+.PHONY: cluster
+cluster: init ## Talos config + bootstrap (terraform/talos), then Cilium + Argo CD (scripts/bootstrap-cluster.sh)
+	$(TF_TALOS) apply -input=false $(TF_APPROVE)
+	scripts/bootstrap-cluster.sh
 
 .PHONY: down destroy
-down destroy: init ## Tear the lab down completely
+down destroy: init ## Tear the lab down completely (cluster state first, then the VMs)
+	$(TF_TALOS) destroy -input=false $(TF_APPROVE)
 	$(TF_HOST) destroy -input=false $(TF_APPROVE)
+	rm -f .cache/cluster/kubeconfig .cache/cluster/talosconfig
 
 .PHONY: route
 route: ## Route the lab CIDR via the OPNsense WAN on this workstation (sudo)
@@ -68,9 +83,12 @@ route: ## Route the lab CIDR via the OPNsense WAN on this workstation (sudo)
 unroute: ## Remove the lab route from this workstation (sudo)
 	-sudo ip route del $(LAB_CIDR)
 
-.PHONY: verify
-verify: ## Check the Phase 1 acceptance criteria against the running lab
+.PHONY: verify verify-host
+verify-host: ## Phase 1 checks (needs the test VM: TF_VAR_enable_test_vm=true make host)
 	scripts/verify-host.sh
+
+verify: ## Phase 2 checks: nodes, Cilium, Argo CD, Gateway
+	scripts/verify-cluster.sh
 
 .PHONY: test
 test: ## Run infra/app tests
