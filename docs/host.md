@@ -71,11 +71,15 @@ cluster is up.
 - **Spare NIC `enp11s0`**: now the dedicated OPNsense WAN uplink (cabled 2026-11-19, kept address-less via
   `/etc/systemd/network/10-lab-uplink.network`; see ADR 0003).
 
-## Not yet checked (needs sudo)
+## Follow-up checks
 
-- `sudo ufw status verbose` and `sudo nft list ruleset`: exact firewall rules
-- `sudo dmidecode -t memory`: DIMM layout (for a possible RAM upgrade; the Mac Pro 2013 takes up to 64/128 GB)
-- `virt-host-validate qemu`: after libvirt is installed
+- ✅ `virt-host-validate qemu` (libvirt 12.9 / QEMU 11.1): all PASS. Three WARNs that don't matter here: the `devices`
+  cgroup (doesn't apply on cgroup v2), IOMMU off (only needed for PCI passthrough), no SEV/TDX (not on Ivy Bridge).
+- ✅ `sudo ufw status verbose`: active; default deny incoming, allow outgoing, routed disabled. The lab doesn't
+  touch it.
+- ✅ Host netfilter: `br_netfilter` not loaded, `ip_forward=1` (from Docker), Docker 29 uses the iptables (nft)
+  backend, libvirt `default` network inactive with no autostart.
+- ⏳ `sudo dmidecode -t memory`: DIMM layout (for a possible RAM upgrade; the Mac Pro 2013 takes up to 64/128 GB)
 
 ## Reproduce
 
