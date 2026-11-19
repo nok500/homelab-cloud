@@ -42,9 +42,15 @@ count="$(kubectl get nodes --no-headers 2>/dev/null | wc -l)"
 [[ "${count}" -eq "${#NODES[@]}" ]] && ok "node count ${count}" || bad "node count ${count} (want ${#NODES[@]})"
 if kubectl -n kube-system get ds kube-proxy >/dev/null 2>&1; then bad "no kube-proxy (Cilium replaces it)"; else ok "no kube-proxy (Cilium replaces it)"; fi
 check "CoreDNS available" kubectl -n kube-system rollout status deploy/coredns --timeout=60s
-dns_out="$(kubectl run "verify-dns-$$" --rm -i --restart=Never --quiet --image=busybox:1.37.0 --command -- \
-  sh -c 'nslookup kubernetes.default.svc.cluster.local && nslookup deb.debian.org' 2>&1)"
-if grep -q "deb.debian.org" <<<"${dns_out}" && ! grep -qi "can't find\|NXDOMAIN" <<<"${dns_out}"; then
+# Restricted-PSA-compliant throwaway pod; retried because CoreDNS caches the SERVFAILs it gets while
+# the VPC resolver is still warming up right after a rebuild.
+DNS_POD_OVERRIDES='{"spec":{"securityContext":{"runAsNonRoot":true,"runAsUser":65534,"seccompProfile":{"type":"RuntimeDefault"}},"containers":[{"name":"dns","image":"busybox:1.37.0","command":["sh","-c","nslookup kubernetes.default.svc.cluster.local && nslookup deb.debian.org"],"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}}}]}}'
+pod_dns() {
+  dns_out="$(kubectl run "verify-dns-$$" --rm -i --restart=Never --quiet --image=busybox:1.37.0 \
+    --overrides="${DNS_POD_OVERRIDES}" 2>&1)"
+  grep -q "deb.debian.org" <<<"${dns_out}" && ! grep -qi "can't find\|NXDOMAIN\|SERVFAIL" <<<"${dns_out}"
+}
+if retry 6 15 pod_dns; then
   ok "pod resolves cluster and external names"
 else
   bad "pod DNS: ${dns_out//$'\n'/ }"
@@ -55,7 +61,8 @@ check "cilium agents ready" kubectl -n kube-system rollout status ds/cilium --ti
 check "cilium operator ready" kubectl -n kube-system rollout status deploy/cilium-operator --timeout=120s
 agent="$(kubectl -n kube-system get pod -l k8s-app=cilium -o name 2>/dev/null | head -1)"
 check "cilium status (KubeProxyReplacement True)" sh -c "kubectl -n kube-system exec ${agent} -c cilium-agent -- cilium-dbg status | grep -q 'KubeProxyReplacement:.*True'"
-check "LB IP pool has free IPs" sh -c "kubectl get ciliumloadbalancerippool private -o jsonpath='{.status.conditions[?(@.type==\"cilium.io/PoolConflict\")].status}' | grep -qx False"
+pool_free() { kubectl get ciliumloadbalancerippool private -o jsonpath='{.status.conditions[?(@.type=="cilium.io/IPsAvailable")].message}' | awk '$1 > 0 {f=1} END {exit !f}'; }
+check "LB IP pool private has free IPs" retry 12 5 pool_free
 check "L2 announcement policy present" kubectl get ciliuml2announcementpolicies.cilium.io -o name
 
 echo "4. Argo CD"

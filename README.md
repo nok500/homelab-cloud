@@ -4,36 +4,49 @@ A production-shaped **AWS-like platform** built entirely as code on one Mac Pro 
 VPC → "EKS" → managed-service equivalents → GitOps CI/CD → DevSecOps tooling, plus AWS-provider Terraform
 modules tested against the AWS Emulator.
 
-> Status: **Phase 1**: VPC (3 subnets) + OPNsense router/NAT/firewall + test VM, fully rebuildable
-> with `make destroy && make up` (~90 s). See [ADR 0003](docs/decisions/0003-vpc-networking.md).
+> Status: **Phase 2**: "EKS" on the VPC: Talos v1.14.6 (1 control plane + 2 workers, Kubernetes 1.37.2),
+> Cilium 1.20.5 (kube-proxy replacement, LB IPAM, Gateway API) and Argo CD 3.6.2 owning the platform
+> through an app-of-apps. Argo CD UI: http://argocd.lab.macpro/ ([access runbook](docs/runbooks/cluster-access.md)).
+> Phase 1 (VPC + OPNsense): [ADR 0003](docs/decisions/0003-vpc-networking.md); Phase 2: [ADR 0005](docs/decisions/0005-eks-on-talos.md).
 
-## Architecture (target)
+## Architecture
+
+Solid = built, dashed boxes = later phases.
 
 ```mermaid
 flowchart LR
   subgraph LAN["Home LAN 192.168.8.0/24"]
-    ws[Workstation<br/>terraform / talosctl / kubectl]
-    dns[AdGuard Home]
+    ws[Workstation<br/>terraform · talosctl · kubectl]
+    dns[AdGuard Home<br/>192.168.8.1]
   end
   subgraph host["Mac Pro: KVM/libvirt (the 'region')"]
-    opn[OPNsense VM<br/>router · NAT · firewall]
-    subgraph pub["public subnet"]
-      lb[Cilium LB IPs<br/>Gateway API]
+    opn[OPNsense VM 192.168.8.115<br/>router · NAT · firewall<br/>Unbound DNS · NTP · DHCP]
+    subgraph pub["public subnet 10.10.0.0/24"]
+      pubnote[reserved]
     end
-    subgraph priv["private subnet"]
-      cp[talos-cp-1]
-      w1[talos-worker-1]
-      w2[talos-worker-2]
+    subgraph priv["private subnet 10.10.1.0/24"]
+      gw[Cilium Gateway 10.10.1.200<br/>*.lab.macpro]
+      cp[talos-cp-1 .20]
+      w1[talos-worker-1 .21]
+      w2[talos-worker-2 .22]
+      argo[Argo CD<br/>app-of-apps]
     end
-    subgraph data["data subnet"]
+    subgraph data["data subnet 10.10.2.0/24"]
       db[(CNPG · Garage)]
     end
   end
-  ws -- qemu+ssh --> host
+  gh[(GitHub repo)]
+  ws -- "qemu+ssh (Terraform)" --> host
+  ws -- "route 10.10.0.0/16<br/>kube API · Talos API · HTTP" --> opn
   LAN <--> opn
   opn --- pub & priv & data
-  lb --> cp & w1 & w2
-  dns -. "*.lab.macpro" .-> lb
+  opn -. "DNS forward" .-> dns
+  gw --> argo
+  cp & w1 & w2 --- gw
+  argo -- "deploy key (read-only)" --> gh
+  dns -. "rewrite *.lab.macpro" .-> gw
+  style pubnote stroke-dasharray: 5 5
+  style db stroke-dasharray: 5 5
 ```
 
 | AWS | Here |
@@ -53,9 +66,9 @@ make help     # list targets
 make hooks    # install pinned tools + git hooks
 make lint     # pre-commit on all files
 make temps    # host CPU temperatures
-make up       # build the lab (images, networks, OPNsense, test VM)
+make up       # build the lab: VPC + OPNsense, Talos cluster, Cilium, Argo CD (~15 min)
 make route    # sudo: route 10.10.0.0/16 via OPNsense on this workstation
-make verify   # acceptance checks
+make verify   # Phase 2 acceptance checks (verify-host: Phase 1, needs the test VM)
 make destroy  # tear it down
 ```
 

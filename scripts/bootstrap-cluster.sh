@@ -18,7 +18,12 @@ CILIUM_VERSION="$(chart_version "${ROOT}/k8s/bootstrap/apps/cilium.yaml" cilium)
 ARGOCD_VERSION="$(chart_version "${ROOT}/k8s/bootstrap/apps/argocd.yaml" argo-cd)"
 [[ -n "${CILIUM_VERSION}" && -n "${ARGOCD_VERSION}" ]] || { echo "could not read chart versions" >&2; exit 1; }
 
-step "API server"
+step "API server (etcd + kube-apiserver come up a few minutes after talos_machine_bootstrap)"
+for i in $(seq 1 60); do
+  kubectl get --raw /readyz >/dev/null 2>&1 && break
+  [[ "${i}" -eq 60 ]] && { echo "API server not ready after 10 min" >&2; exit 1; }
+  sleep 10
+done
 kubectl version -o json | python3 -c 'import json,sys; print("server", json.load(sys.stdin)["serverVersion"]["gitVersion"])'
 
 step "Gateway API CRDs (before Cilium, which only enables its Gateway controller if they exist)"
