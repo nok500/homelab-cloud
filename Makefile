@@ -31,17 +31,46 @@ lint: tools ## Run all pre-commit checks on every file
 temps: ## Show lab host CPU temperatures and fan speed
 	scripts/host-temps.sh
 
+TF_HOST := terraform -chdir=terraform/host
+# AUTO_APPROVE=1 make up|destroy skips the interactive confirmation
+TF_APPROVE := $(if $(AUTO_APPROVE),-auto-approve,)
+LAB_CIDR := 10.10.0.0/16
+WAN_IP_FILE := .cache/host/opnsense-wan.ip
+
+.PHONY: images
+images: ## Download + verify VM base images into .cache/images
+	scripts/fetch-images.sh
+
+.PHONY: init
+init:
+	$(TF_HOST) init -input=false
+
 .PHONY: plan
-plan: ## Terraform plan for the whole lab
-	$(call todo,Phase 1 - terraform/host)
+plan: images init ## Terraform plan for the whole lab
+	$(TF_HOST) plan -input=false
 
 .PHONY: up
-up: ## Build the lab (hypervisor networks -> VMs -> cluster -> Argo CD)
-	$(call todo,Phase 1/2)
+up: images init ## Build the lab: VPC networks, OPNsense, test VM (Phase 2+ adds the cluster)
+	$(TF_HOST) apply -input=false $(TF_APPROVE)
+	@echo "OPNsense WAN: $$(cat $(WAN_IP_FILE))   next: make route && make verify"
 
 .PHONY: down destroy
-down destroy: ## Tear the lab down completely
-	$(call todo,Phase 1/2)
+down destroy: init ## Tear the lab down completely
+	$(TF_HOST) destroy -input=false $(TF_APPROVE)
+
+.PHONY: route
+route: ## Route the lab CIDR via the OPNsense WAN on this workstation (sudo)
+	@test -s $(WAN_IP_FILE) || { echo "no WAN IP yet, run make up" >&2; exit 1; }
+	sudo ip route replace $(LAB_CIDR) via $$(cat $(WAN_IP_FILE))
+	@ip route show $(LAB_CIDR)
+
+.PHONY: unroute
+unroute: ## Remove the lab route from this workstation (sudo)
+	-sudo ip route del $(LAB_CIDR)
+
+.PHONY: verify
+verify: ## Check the Phase 1 acceptance criteria against the running lab
+	scripts/verify-host.sh
 
 .PHONY: test
 test: ## Run infra/app tests
