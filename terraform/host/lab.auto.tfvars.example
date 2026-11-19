@@ -1,0 +1,7 @@
+# Copy to lab.auto.tfvars (git-ignored) and fill in your own values.
+
+# Workstation(s) on the home LAN allowed in through the OPNsense WAN.
+admin_cidrs = ["192.168.1.10/32"]
+
+# libvirt_uri          = "qemu+sshcmd://lab-host/system"
+# wan_parent_interface = "eth0"
