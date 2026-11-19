@@ -75,3 +75,14 @@ make route    # sudo: 10.10.0.0/16 via OPNsense WAN on this workstation (not per
 make verify   # Phase 1 acceptance checks
 make destroy  # removes everything libvirt-side; the host is back to its pre-lab state
 ```
+
+## 4. Phase 2: cluster prerequisites (once)
+
+1. **Argo CD deploy key.** `scripts/bootstrap-cluster.sh` expects `.cache/cluster/argocd-deploy-key`:
+   ```sh
+   ssh-keygen -t ed25519 -N '' -C 'argocd@homelab-cloud (read-only deploy key)' -f .cache/cluster/argocd-deploy-key
+   ```
+   Add the `.pub` half on the GitHub repo: Settings → Deploy keys → Add deploy key, **write access off**.
+   (Repo-scoped and read-only; never add it as an account SSH key.)
+2. **AdGuard DNS rewrite** (Filters → DNS rewrites): `*.lab.macpro` → `10.10.1.200` (the Cilium Gateway).
+3. `make up` (VPC + VMs + Talos + Cilium + Argo CD, ~15 min), then see `docs/runbooks/cluster-access.md`.
