@@ -44,3 +44,6 @@ keys.txt
 .idea/
 *.swp
 .DS_Store
+
+# downloaded/converted images (scripts/fetch-images.sh)
+.cache/
