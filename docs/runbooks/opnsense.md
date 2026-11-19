@@ -30,6 +30,7 @@ Any change to the template or keys replaces the ISO, the disk and the VM (a fres
 | SSH host key changes on every rebuild despite shipping one | 26.7 regenerates **all** host keys if any of rsa/ecdsa/ed25519 is missing | Terraform generates all three |
 | Terraform wants to replace the bootstrap step after apply | In `dmacvicar/libvirt` 0.9 `id` is the runtime domain ID (null when off) | Trigger on `uuid`; `ignore_changes = [running]` |
 | Replies to the workstation go via the home router (`reply-to (vtnet0 192.168.8.1)` in `pfctl -sr`) | OPNsense adds reply-to on WAN rules by default; the admin workstation is on the WAN's own subnet | `disablereplyto` on the admin rules |
+| Host got a 2nd IP + 2nd default route when `enp11s0` was cabled | Stock `20-ethernet.network` DHCPs every Ethernet port | `10-lab-uplink.network` (bootstrap.md §2) |
 | Debian test VM reboot-loops right after GRUB | libvirt uses `-nodefaults`, so there's no VGA at all, and the Debian cloud GRUB/kernel needs one | `videos = [{ model = { type = "vga" } }]` |
 
 ## Rules (seeded via config.xml)

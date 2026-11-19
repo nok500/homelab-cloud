@@ -5,9 +5,9 @@ variable "libvirt_uri" {
 }
 
 variable "wan_parent_interface" {
-  description = "Host NIC the OPNsense WAN attaches to via macvtap (bridge mode). Host config is not modified."
+  description = "Host NIC the OPNsense WAN attaches to via macvtap (bridge mode). Dedicated uplink with no host IP (docs/bootstrap.md)."
   type        = string
-  default     = "enp12s0"
+  default     = "enp11s0"
 }
 
 variable "admin_cidrs" {

@@ -36,7 +36,35 @@ Notes:
   `sudo virsh net-autostart default --disable; sudo virsh net-destroy default`
 - Installing libvirt does not touch UFW or the LAN interface, so the SSH session is safe.
 
-## 2. Workstation: Phase 1 extras
+## 2. Lab host: dedicated WAN uplink for OPNsense
+
+Before cabling the second NIC, stop the stock networkd config from giving it a host IP, which would add a second
+default route on the same subnet. Use the NIC's permanent MAC (`ip link show enp11s0`):
+
+```sh
+sudo tee /etc/systemd/network/10-lab-uplink.network >/dev/null <<'NET'
+# enp11s0 = dedicated OPNsense WAN uplink (macvtap). No host IP on purpose.
+[Match]
+PermanentMACAddress=00:3e:e1:bf:f8:82
+
+[Link]
+RequiredForOnline=no
+
+[Network]
+DHCP=no
+LinkLocalAddressing=no
+IPv6AcceptRA=no
+MulticastDNS=no
+NET
+sudo networkctl reload && sudo networkctl reconfigure enp11s0
+ip -br a show enp11s0        # UP, no address
+ip -4 route show default     # one route, via enp12s0
+```
+
+Then plug the cable into the LAN switch/router. Without a second NIC, set `wan_parent_interface` to the host's
+LAN NIC instead (the host then can't reach OPNsense; see ADR 0003).
+
+## 3. Workstation: Phase 1 extras
 
 - `genisoimage` (packs the OPNsense `config.xml` ISO), `qemu-img` (image conversion), `virsh` (libvirt client).
 - `terraform/host/lab.auto.tfvars` (git-ignored), from `lab.auto.tfvars.example`: at least `admin_cidrs`.

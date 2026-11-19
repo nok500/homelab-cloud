@@ -11,7 +11,7 @@ Surveyed 2026-11-19 over SSH, read-only. Re-check with `make temps` and the comm
 | x86-64 level | Ivy Bridge-EP → supports **x86-64-v2** (required by Talos amd64 images) |
 | RAM | 32 GB installed, **31.3 GiB** usable (`MemTotal: 32827652 kB`) |
 | Disk | 1× 894 GB NVMe (`nvme0n1`): 1 GB vfat `/boot`, 893 GB ext4 `/` (**767 GB free**) |
-| NICs | `enp12s0` (LAN, DHCP, 192.168.8.207/24), `enp11s0` (**unused, link down**) |
+| NICs | `enp12s0` (host LAN, DHCP, 192.168.8.207/24), `enp11s0` (**OPNsense WAN uplink, no host IP**, since Phase 1) |
 | GPU | Dual AMD FirePro (used by the llama.cpp Vulkan container) |
 
 ## Software
@@ -68,8 +68,8 @@ cluster is up.
 - **Firewall risk**: UFW, Docker and libvirt all manage netfilter rules. libvirt's default NAT network
   (`virbr0`) is **not** used: OPNsense does NAT. Lab bridges will be isolated libvirt networks plus one uplink.
   The firewall design is decided in Phase 1, after reading the live ruleset.
-- **Spare NIC `enp11s0`** could become a dedicated OPNsense WAN uplink to the LAN, so the lab never shares `enp12s0`
-  (and the SSH session). This needs a cable and approval; it's an option for Phase 1.
+- **Spare NIC `enp11s0`**: now the dedicated OPNsense WAN uplink (cabled 2026-11-19, kept address-less via
+  `/etc/systemd/network/10-lab-uplink.network`; see ADR 0003).
 
 ## Not yet checked (needs sudo)
 

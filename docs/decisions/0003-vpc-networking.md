@@ -15,24 +15,28 @@ bridge/firewall config without approval, or anything that risks the SSH session.
 |---|---|
 | Subnets | `10.10.0.0/24` public, `10.10.1.0/24` private, `10.10.2.0/24` data. Isolated libvirt networks (`lab-*`, bridges `lbr-*`) with **no host IP**, no libvirt DHCP/NAT |
 | Router | OPNsense 26.7 (nano image) is `.1` on every subnet: DHCP (dnsmasq), DNS (Unbound), outbound NAT, pf firewall |
-| WAN | **macvtap (bridge mode) on `enp12s0`**: OPNsense gets its own DHCP lease on the home LAN |
+| WAN | **macvtap (bridge mode) on the dedicated NIC `enp11s0`** (no host IP): OPNsense gets its own DHCP lease on the home LAN |
 | LAN → lab | Static route `10.10.0.0/16 via <OPNsense WAN>` on the admin workstation only (`make route`) |
 | Ingress policy | WAN default deny. `admin_cidrs` may reach OPNsense SSH/HTTPS/ICMP and the private subnet SSH/ICMP. WAN "block private networks" is off, since the WAN *is* an RFC1918 LAN |
 
 ## Why
 
-- **Zero host changes.** macvtap and the isolated bridges are created and removed by libvirt; the host's
-  `enp12s0`, UFW rules and Docker are untouched. With no host IP on the lab bridges, and `br_netfilter` not loaded,
+- **Minimal host changes.** macvtap and the isolated bridges are created and removed by libvirt; the host's
+  `enp12s0`, UFW rules and Docker are untouched. The only host change is one networkd file that keeps
+  `enp11s0` address-less (see below). With no host IP on the lab bridges, and `br_netfilter` not loaded,
   lab traffic never enters the host's netfilter, so there's no interaction with Docker's `FORWARD DROP` policy.
 - **Same shape as AWS.** One router per VPC; subnets only reach each other and the outside through it;
   ingress is opt-in per source and port, like security groups and NACLs.
 
 ## Trade-offs
 
-- **macvtap host isolation**: the Mac Pro itself cannot talk to OPNsense's WAN address (traffic between a
-  macvtap guest and its parent NIC's host is not looped back). Everything is managed from the workstation,
-  so this doesn't matter today. If the host ever needs lab access, add a host-side libvirt network or use the
-  spare NIC `enp11s0`.
+- **macvtap host isolation**: a macvtap guest can't talk to its parent NIC's host. Phase 1 first used
+  `enp12s0` (the host's own LAN port) and so the Mac Pro couldn't reach OPNsense. On 2026-11-19 the WAN moved
+  to the second NIC `enp11s0`, cabled to the same LAN: host ↔ OPNsense traffic now goes out `enp12s0`, through
+  the switch and back in `enp11s0`, and lab traffic no longer shares the host's SSH/Docker link.
+- `enp11s0` must have **no host IP**. The stock `20-ethernet.network` matches every Ethernet port with DHCP, which
+  gave the host a second address and a second equal-metric default route on the same subnet. A
+  `10-lab-uplink.network` matching the port's permanent MAC (DHCP, link-local, RA and mDNS off) takes precedence.
 - **Static route on one machine** keeps the home router untouched but means other LAN devices can't reach
   the lab. Revisit in Phase 2 together with `*.lab.home` DNS.
 - The WAN IP comes from the home router's DHCP. A fixed MAC (`52:54:00:10:00:01`) keeps the lease stable

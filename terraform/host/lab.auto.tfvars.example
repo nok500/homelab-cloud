@@ -4,4 +4,4 @@
 admin_cidrs = ["192.168.1.10/32"]
 
 # libvirt_uri          = "qemu+sshcmd://lab-host/system"
-# wan_parent_interface = "eth0"
+# wan_parent_interface = "eth1"   # dedicated uplink NIC with no host IP (default enp11s0)
