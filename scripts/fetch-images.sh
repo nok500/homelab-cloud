@@ -49,6 +49,27 @@ if [[ ! -f "${opn_qcow}" ]]; then
   rm -f "${img}"
 fi
 
+# --- Talos (metal, qcow2) from Image Factory --------------------------------
+# The schematic ID is content-addressed (sha256 of the customization below), so it pins the extension
+# set. Factory images have no published checksum: the image hash is pinned on first download (TOFU).
+#   customization: { systemExtensions: { officialExtensions: [siderolabs/qemu-guest-agent] } }
+TALOS_VERSION="1.14.6"
+TALOS_SCHEMATIC="ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515"
+# pinned on first download, 2026-11-19
+TALOS_SHA256="3f9f7af10bca31a5a2db9b1517dbe82edc735210d61f24b2c186f250b54c0ff3"
+talos="talos-${TALOS_VERSION}-metal-amd64.qcow2"
+if [[ ! -f "${talos}" ]]; then
+  echo ">> fetching ${talos} (schematic ${TALOS_SCHEMATIC:0:12}…)"
+  curl -fsSL -o "${talos}.tmp" \
+    "https://factory.talos.dev/image/${TALOS_SCHEMATIC}/v${TALOS_VERSION}/metal-amd64.qcow2"
+  got="$(sha256sum "${talos}.tmp" | cut -d' ' -f1)"
+  if [[ -n "${TALOS_SHA256}" && "${got}" != "${TALOS_SHA256}" ]]; then
+    echo "Talos image checksum mismatch: ${got}" >&2; exit 1
+  fi
+  [[ -n "${TALOS_SHA256}" ]] || echo "   (no pinned hash yet; got ${got})"
+  mv "${talos}.tmp" "${talos}"
+fi
+
 # --- Debian 13 genericcloud (test VM) ---------------------------------------
 deb="debian-13-genericcloud-amd64-${DEBIAN_BUILD}.qcow2"
 if [[ ! -f "${deb}" ]]; then

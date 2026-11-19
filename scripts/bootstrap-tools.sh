@@ -6,6 +6,7 @@ set -euo pipefail
 TFLINT_VERSION="0.66.0"
 GITLEAKS_VERSION="8.30.1"
 PRE_COMMIT_VERSION="4.7.0"
+TALOSCTL_VERSION="1.14.6"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TOOLS="${ROOT}/.tools"
@@ -39,6 +40,15 @@ if [[ "$("${BIN}/gitleaks" version 2>/dev/null)" != *"${GITLEAKS_VERSION}"* ]]; 
   verify gitleaks.sums "${asset}"
   tar -xzf "${TMP}/${asset}" -C "${TMP}" gitleaks
   install -m 0755 "${TMP}/gitleaks" "${BIN}/gitleaks"
+fi
+
+if [[ "$("${BIN}/talosctl" version --client --short 2>/dev/null)" != *"v${TALOSCTL_VERSION}"* ]]; then
+  echo ">> talosctl ${TALOSCTL_VERSION}"
+  base="https://github.com/siderolabs/talos/releases/download/v${TALOSCTL_VERSION}"
+  curl -fsSL -o "${TMP}/talosctl-linux-amd64" "${base}/talosctl-linux-amd64"
+  curl -fsSL -o "${TMP}/talos.sums" "${base}/sha256sum.txt"
+  verify talos.sums talosctl-linux-amd64
+  install -m 0755 "${TMP}/talosctl-linux-amd64" "${BIN}/talosctl"
 fi
 
 if [[ "$("${TOOLS}/venv/bin/pre-commit" --version 2>/dev/null)" != *"${PRE_COMMIT_VERSION}"* ]]; then
