@@ -4,7 +4,8 @@ A production-shaped **AWS-like platform** built entirely as code on one Mac Pro 
 VPC → "EKS" → managed-service equivalents → GitOps CI/CD → DevSecOps tooling, plus AWS-provider Terraform
 modules tested against the AWS Emulator.
 
-> Status: **Phase 0**: host surveyed, repo scaffolded. See [docs/host.md](docs/host.md).
+> Status: **Phase 1**: VPC (3 subnets) + OPNsense router/NAT/firewall + test VM, fully rebuildable
+> with `make destroy && make up` (~90 s). See [ADR 0003](docs/decisions/0003-vpc-networking.md).
 
 ## Architecture (target)
 
@@ -52,8 +53,10 @@ make help     # list targets
 make hooks    # install pinned tools + git hooks
 make lint     # pre-commit on all files
 make temps    # host CPU temperatures
-make up       # (Phase 1+) build the lab
-make destroy  # (Phase 1+) tear it down
+make up       # build the lab (images, networks, OPNsense, test VM)
+make route    # sudo: route 10.10.0.0/16 via OPNsense on this workstation
+make verify   # acceptance checks
+make destroy  # tear it down
 ```
 
 Manual one-time steps: [docs/bootstrap.md](docs/bootstrap.md). Design decisions: [docs/decisions/](docs/decisions/).

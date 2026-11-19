@@ -39,6 +39,12 @@ Sizes are **Terraform variables per role**. Defaults follow the owner's request:
 - **Workers at 1 GiB** leave about 500 MiB for pods after Talos + Cilium. That's enough for Phase 2 smoke tests, but not for
   Argo CD + Phase 3 services. Expect workers to grow to 4–8 GiB by Phase 3.
 
+## Log
+
+| Date | Change | Why |
+|---|---|---|
+| 2026-11-19 | Phase 1: `opnsense` and `testvm` at 1 vCPU / 1 GiB | OPNsense routes, NATs and serves DHCP/DNS fine at 1 GiB with no plugins |
+
 ## Consequences
 
 Resizing means changing a variable and running `terraform apply` (the VM restarts). Each bump is recorded here with its

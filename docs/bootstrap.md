@@ -35,3 +35,15 @@ Notes:
   uses its own networks with OPNsense doing NAT:
   `sudo virsh net-autostart default --disable; sudo virsh net-destroy default`
 - Installing libvirt does not touch UFW or the LAN interface, so the SSH session is safe.
+
+## 2. Workstation: Phase 1 extras
+
+- `genisoimage` (packs the OPNsense `config.xml` ISO), `qemu-img` (image conversion), `virsh` (libvirt client).
+- `terraform/host/lab.auto.tfvars` (git-ignored), from `lab.auto.tfvars.example`: at least `admin_cidrs`.
+
+```sh
+make up       # images -> pool, networks, OPNsense (scripted first boot), test VM   (~2 min)
+make route    # sudo: 10.10.0.0/16 via OPNsense WAN on this workstation (not persistent)
+make verify   # Phase 1 acceptance checks
+make destroy  # removes everything libvirt-side; the host is back to its pre-lab state
+```
