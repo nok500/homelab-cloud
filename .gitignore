@@ -1,0 +1,46 @@
+# local tooling
+.tools/
+
+# terraform (lock files ARE committed)
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+*.auto.tfvars
+secrets.tfvars
+
+# cluster credentials - never commit
+kubeconfig
+kubeconfig*
+talosconfig
+**/_out/
+controlplane.yaml
+worker.yaml
+secrets.yaml
+
+# secrets: only SOPS-encrypted files (*.enc.yaml) may be committed
+*.agekey
+age.key
+keys.txt
+*.dec.yaml
+*.dec.json
+.env
+.env.*
+
+# images / disks
+*.qcow2
+*.iso
+*.raw
+*.raw.xz
+
+# editors / os
+.vscode/
+.idea/
+*.swp
+.DS_Store
