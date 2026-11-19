@@ -6,7 +6,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-export KUBECONFIG="${KUBECONFIG:-${ROOT}/.cache/cluster/kubeconfig}"
+export KUBECONFIG="${ROOT}/.cache/cluster/kubeconfig"   # always the lab cluster, never the caller's context
 DEPLOY_KEY="${ROOT}/.cache/cluster/argocd-deploy-key"
 REPO_URL="git@github.com:nok500/homelab-cloud.git"
 

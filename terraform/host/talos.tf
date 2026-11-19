@@ -80,6 +80,13 @@ resource "libvirt_domain" "talos" {
       target = { type = "serial", port = 0 }
     }]
 
+    # virtio-serial channel for the qemu-guest-agent extension baked into the schematic
+    # (`virsh domifaddr --source agent`, clean `virsh shutdown`); libvirt picks the socket path.
+    channels = [{
+      source = { unix = { mode = "bind" } }
+      target = { virt_io = { name = "org.qemu.guest_agent.0" } }
+    }]
+
     # libvirt adds no video device by default (-nodefaults); bootloaders can hang without one
     videos = [{
       model = { type = "vga" }
