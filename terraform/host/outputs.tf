@@ -23,6 +23,11 @@ output "test_vm_mac" {
   value = var.enable_test_vm ? "52:54:00:10:01:10" : null
 }
 
+output "opnsense_host_alias" {
+  description = "Name the pinned OPNsense host keys are recorded under in known_hosts."
+  value       = local.opnsense_host_alias
+}
+
 output "ssh_opnsense" {
   description = "SSH to OPNsense with the pinned host key (WAN IP from the bootstrap step)."
   value       = "ssh -o HostKeyAlias=${local.opnsense_host_alias} -o UserKnownHostsFile=${local_file.known_hosts.filename} root@$(cat ${local.cache_dir}/opnsense-wan.ip)"

@@ -38,7 +38,7 @@ bridge/firewall config without approval, or anything that risks the SSH session.
   gave the host a second address and a second equal-metric default route on the same subnet. A
   `10-lab-uplink.network` matching the port's permanent MAC (DHCP, link-local, RA and mDNS off) takes precedence.
 - **Static route on one machine** keeps the home router untouched but means other LAN devices can't reach
-  the lab. Revisit in Phase 2 together with `*.lab.home` DNS.
+  the lab. Revisit in Phase 2 together with `*.lab.macpro` DNS ([ADR 0004](0004-lab-dns.md)).
 - The WAN IP comes from the home router's DHCP. A fixed MAC (`52:54:00:10:00:01`) keeps the lease stable
   across rebuilds.
 

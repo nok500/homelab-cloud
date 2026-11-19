@@ -35,7 +35,7 @@ variable "pool_path" {
 variable "domain" {
   description = "DNS domain for the lab."
   type        = string
-  default     = "lab.home"
+  default     = "lab.macpro"
 }
 
 variable "timezone" {

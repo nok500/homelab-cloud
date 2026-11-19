@@ -33,7 +33,7 @@ flowchart LR
   LAN <--> opn
   opn --- pub & priv & data
   lb --> cp & w1 & w2
-  dns -. "*.lab.home" .-> lb
+  dns -. "*.lab.macpro" .-> lb
 ```
 
 | AWS | Here |
