@@ -44,6 +44,7 @@ Sizes are **Terraform variables per role**. Defaults follow the owner's request:
 | Date | Change | Why |
 |---|---|---|
 | 2026-11-19 | Phase 1: `opnsense` and `testvm` at 1 vCPU / 1 GiB | OPNsense routes, NATs and serves DHCP/DNS fine at 1 GiB with no plugins |
+| 2026-11-19 | Phase 2: `talos-cp-1` memory 1 → **2 GiB** (still 1 vCPU); workers stay 1 vCPU / 1 GiB | Talos's cluster health gate rejects it: `node does not meet memory requirements: expected at least 1698 MiB, actual 944 MiB`. Workers pass at 1 GiB |
 
 ## Consequences
 
