@@ -46,13 +46,37 @@ locals {
 
   # replyto = false: admin_cidrs sit on the WAN's own subnet, so replies must go straight back
   # on the LAN instead of being forced via the WAN gateway (OPNsense's default reply-to).
-  admin_rules = flatten([for i, cidr in var.admin_cidrs : [
-    { sequence = 100 + i * 10, interface = "wan", protocol = "TCP", source = cidr, destination = "(self)", port = "22", log = false, replyto = false, description = "admin ${cidr}: SSH to firewall" },
-    { sequence = 101 + i * 10, interface = "wan", protocol = "TCP", source = cidr, destination = "(self)", port = "443", log = false, replyto = false, description = "admin ${cidr}: web UI/API" },
-    { sequence = 102 + i * 10, interface = "wan", protocol = "ICMP", source = cidr, destination = "(self)", port = "", log = false, replyto = false, description = "admin ${cidr}: ping firewall" },
-    { sequence = 103 + i * 10, interface = "wan", protocol = "TCP", source = cidr, destination = "lan", port = "22", log = true, replyto = false, description = "admin ${cidr}: SSH into private" },
-    { sequence = 104 + i * 10, interface = "wan", protocol = "ICMP", source = cidr, destination = "lan", port = "", log = false, replyto = false, description = "admin ${cidr}: ping private" },
-  ]])
+  # Ports admin_cidrs may reach in the private subnet: SSH (test VM), Kubernetes API, Talos API,
+  # and the Cilium Gateway (HTTP/HTTPS on the LB IPs).
+  admin_private_ports = {
+    "22"    = "SSH"
+    "6443"  = "Kubernetes API"
+    "50000" = "Talos API"
+    "80"    = "Gateway HTTP"
+    "443"   = "Gateway HTTPS"
+  }
+
+  admin_rules = flatten([for i, cidr in var.admin_cidrs : concat(
+    [
+      { sequence = 100 + i * 20, interface = "wan", protocol = "TCP", source = cidr, destination = "(self)", port = "22", log = false, replyto = false, description = "admin ${cidr}: SSH to firewall" },
+      { sequence = 101 + i * 20, interface = "wan", protocol = "TCP", source = cidr, destination = "(self)", port = "443", log = false, replyto = false, description = "admin ${cidr}: web UI/API" },
+      { sequence = 102 + i * 20, interface = "wan", protocol = "ICMP", source = cidr, destination = "(self)", port = "", log = false, replyto = false, description = "admin ${cidr}: ping firewall" },
+      { sequence = 103 + i * 20, interface = "wan", protocol = "ICMP", source = cidr, destination = "lan", port = "", log = false, replyto = false, description = "admin ${cidr}: ping private" },
+    ],
+    [for j, port in keys(local.admin_private_ports) : {
+      sequence = 104 + i * 20 + j, interface = "wan", protocol = "TCP", source = cidr, destination = "lan", port = port,
+      log      = port == "22", replyto = false, description = "admin ${cidr}: ${local.admin_private_ports[port]} into private"
+    }],
+  )])
+
+  # Talos nodes: fixed IPs on the private subnet via DHCP reservations (MAC -> IP), so the
+  # nodes boot into maintenance mode at a known address and terraform/talos can configure them.
+  talos_nodes = { for name, n in var.talos_nodes : name => merge(n, {
+    ip  = cidrhost(local.subnet["private"].cidr, n.host_number)
+    mac = format("52:54:00:10:01:%02x", n.host_number)
+  }) }
+
+  static_hosts = [for name, n in local.talos_nodes : { name = name, ip = n.ip, mac = n.mac, descr = "talos ${n.role}" }]
 
   opnsense_config = templatefile("${path.module}/templates/opnsense-config.xml.tftpl", {
     opnsense_version         = var.opnsense_version
@@ -63,5 +87,8 @@ locals {
     root_authorized_keys_b64 = base64encode("${local.ssh_public_key}\n")
     subnets                  = local.subnets
     rules                    = concat(local.egress_rules, local.admin_rules)
+    static_hosts             = local.static_hosts
+    ntp_server               = var.ntp_server
+    upstream_dns             = var.upstream_dns
   })
 }

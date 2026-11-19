@@ -30,7 +30,7 @@
       <uid>0</uid>
     </user>
     <timezone>${timezone}</timezone>
-    <timeservers>0.opnsense.pool.ntp.org 1.opnsense.pool.ntp.org 2.opnsense.pool.ntp.org 3.opnsense.pool.ntp.org</timeservers>
+    <timeservers>${ntp_server}</timeservers>
     <webgui>
       <protocol>https</protocol>
     </webgui>
@@ -90,6 +90,15 @@
       <end_addr>${s.dhcp_end}</end_addr>
     </dhcp_ranges>
 %{ endfor ~}
+%{ for h in static_hosts ~}
+    <hosts>
+      <host>${h.name}</host>
+      <domain>${domain}</domain>
+      <ip>${h.ip}</ip>
+      <hwaddr>${h.mac}</hwaddr>
+      <descr>${h.descr}</descr>
+    </hosts>
+%{ endfor ~}
   </dnsmasq>
   <unbound>
     <enable>1</enable>
@@ -104,11 +113,39 @@
   <rrd>
     <enable/>
   </rrd>
+  <!-- one upstream pool; served to the VPC subnets (Talos nodes use 10.10.x.1), like AWS Time Sync -->
   <ntpd>
-    <prefer>0.opnsense.pool.ntp.org</prefer>
-    <ispool>0.opnsense.pool.ntp.org 1.opnsense.pool.ntp.org 2.opnsense.pool.ntp.org 3.opnsense.pool.ntp.org</ispool>
+    <prefer>${ntp_server}</prefer>
+    <ispool>${ntp_server}</ispool>
+    <interface>${join(",", [for s in subnets : s.ifkey])}</interface>
   </ntpd>
   <OPNsense>
+    <!-- Unbound: lab.macpro (DHCP names) from dnsmasq, everything else forwarded upstream (AdGuard).
+         Written in the legacy <domains> (Domain Overrides) format on purpose: model migration M1_0_11
+         converts these into <dots> entries of type "forward". Entries written directly as <dots> come
+         out as type "dot" (DNS-over-TLS) after the migrations run, which breaks plain-DNS forwarding.
+         No version= attribute, so all migrations run and fill in the model defaults. -->
+    <unboundplus>
+      <general>
+        <enabled>1</enabled>
+      </general>
+      <domains>
+        <domain>
+          <enabled>1</enabled>
+          <domain>${domain}</domain>
+          <server>127.0.0.1@53053</server>
+          <description>DHCP host names (dnsmasq)</description>
+        </domain>
+%{ if upstream_dns != null ~}
+        <domain>
+          <enabled>1</enabled>
+          <domain/>
+          <server>${upstream_dns}@53</server>
+          <description>upstream resolver (all other names)</description>
+        </domain>
+%{ endif ~}
+      </domains>
+    </unboundplus>
     <Firewall>
       <Filter>
         <rules>

@@ -32,3 +32,18 @@ output "ssh_opnsense" {
   description = "SSH to OPNsense with the pinned host key (WAN IP from the bootstrap step)."
   value       = "ssh -o HostKeyAlias=${local.opnsense_host_alias} -o UserKnownHostsFile=${local_file.known_hosts.filename} root@$(cat ${local.cache_dir}/opnsense-wan.ip)"
 }
+
+output "talos_nodes" {
+  description = "Talos nodes (name -> role, IP, MAC), consumed by terraform/talos."
+  value       = { for name, n in local.talos_nodes : name => { role = n.role, ip = n.ip, mac = n.mac } }
+}
+
+output "network" {
+  description = "VPC facts consumed by terraform/talos (gateway = DNS and NTP for the nodes)."
+  value = {
+    domain          = var.domain
+    private_cidr    = local.subnet["private"].cidr
+    private_gateway = local.subnet["private"].gateway
+    lb_ip_range     = { start = cidrhost(local.subnet["private"].cidr, 200), stop = cidrhost(local.subnet["private"].cidr, 220) }
+  }
+}
