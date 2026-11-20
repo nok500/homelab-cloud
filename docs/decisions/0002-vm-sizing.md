@@ -45,6 +45,8 @@ Sizes are **Terraform variables per role**. Defaults follow the owner's request:
 |---|---|---|
 | 2026-11-19 | Phase 1: `opnsense` and `testvm` at 1 vCPU / 1 GiB | OPNsense routes, NATs and serves DHCP/DNS fine at 1 GiB with no plugins |
 | 2026-11-19 | Phase 2: `talos-cp-1` memory 1 → **2 GiB** (still 1 vCPU); workers stay 1 vCPU / 1 GiB | Talos's cluster health gate rejects it: `node does not meet memory requirements: expected at least 1698 MiB, actual 944 MiB`. Workers pass at 1 GiB |
+| 2026-11-19 | Phase 2: workers 1 → **2 vCPU**, 1 → **2 GiB**; `talos-cp-1` 2 → **4 GiB** (operator) | 1 vCPU: Cilium probes time out → crash loops. 1 GiB: memory thrashing (PSI `full avg60` 24.5 %) once Cilium + Argo CD run |
+| 2026-11-20 | Before Phase 3: workers 2 → **4 GiB**, `opnsense` 1 → **4 GiB** (operator) | Headroom for the Phase 3 services; from here, bump only on measured pressure (PSI) |
 
 ## Consequences
 
