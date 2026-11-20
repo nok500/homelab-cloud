@@ -83,9 +83,14 @@ route: ## Route the lab CIDR via the OPNsense WAN on this workstation (sudo)
 unroute: ## Remove the lab route from this workstation (sudo)
 	-sudo ip route del $(LAB_CIDR)
 
-.PHONY: pki secrets trust-root
+.PHONY: pki pki-backup secrets trust-root
 pki: tools ## ONE-TIME: lab root/intermediate CA + age key (refuses to overwrite; back up .cache/ca + .cache/age)
 	scripts/pki-init.sh
+
+pki-backup: ## Encrypted backup of .cache/ca + .cache/age (asks for a passphrase); BACKUP_DIR=~ by default
+	@out="$${BACKUP_DIR:-$$HOME}/homelab-pki-$$(date +%F).tar.gz.age"; \
+	tar -C .cache -czf - ca age | .tools/bin/age -p > "$$out" && chmod 600 "$$out" && \
+	echo "wrote $$out" && .tools/bin/age -d "$$out" | tar -tzf - | sed 's/^/  /'
 
 secrets: ## Apply the SOPS-encrypted bootstrap secrets (the OpenBao seed) to the cluster
 	scripts/apply-bootstrap-secrets.sh

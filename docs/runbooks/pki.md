@@ -19,10 +19,48 @@ make trust-root                                         # voodoo (Arch): p11-kit
 Before trusting it anywhere, check the fingerprint: `step certificate fingerprint k8s/platform/step-ca/config/root_ca.crt`.
 The root is name-constrained to `lab.macpro` and `cluster.local`, so trusting it doesn't let it vouch for any other site.
 
-## Back up (once, and keep it safe)
+## Backup & restore
 
-`.cache/ca/` (root key + passwords) and `.cache/age/key.txt`. Both are git-ignored. Without the age key, the
-encrypted secrets in Git are unreadable, and the only way out is a new PKI plus re-trusting it everywhere.
+**What:** `.cache/ca/` (root key, intermediate key, all CA passwords, the provisioner key) and
+`.cache/age/key.txt` (decrypts every `*.enc.yaml` in Git, including the OpenBao seed). Both are git-ignored
+and exist only on voodoo. `.cache/ca` holds the root key *and* its password, so the backup is fully sensitive.
+
+**Why it matters:** losing `.cache/age` means nothing encrypted in Git can be decrypted: a new PKI
+(`make pki`), a new OpenBao seed, and re-trusting a new root on every machine. Losing only `.cache/ca` is
+survivable until the intermediate needs re-signing (2031).
+
+**Never** put the keys in Git, Outline or any wiki/chat, even private ones: those keep revision history,
+index content, and are readable by every integration and API token.
+
+### Back up
+
+```sh
+make pki-backup                          # asks for a passphrase twice; BACKUP_DIR=/path to write elsewhere
+```
+
+It writes `~/homelab-pki-<date>.tar.gz.age`: a tarball of `ca/` and `age/`, encrypted with
+[age](https://age-encryption.org) using a passphrase (scrypt). It lists the archive by decrypting it again,
+which proves the passphrase works.
+
+| Keep | Where |
+|---|---|
+| the passphrase | password manager |
+| the `.age` file | off voodoo, in one or two places (USB stick; password-manager file attachment). Without the passphrase it's useless to anyone |
+
+Run it again whenever `.cache/ca` or `.cache/age` changes, which only happens with a new `make pki`.
+The OpenBao unseal key and admin password live in the SOPS file in Git, so backing up the age key covers them.
+
+### Restore (new workstation, or `.cache` lost)
+
+```sh
+cd ~/projects/lab/homelab-cloud           # fresh clone, then: make tools
+mkdir -p .cache && .tools/bin/age -d ~/homelab-pki-<date>.tar.gz.age | tar -C .cache -xzf -
+chmod -R go-rwx .cache/ca .cache/age
+.tools/bin/step certificate fingerprint .cache/ca/root_ca.crt   # must be 20567e77…13c0d8 (top of this page)
+make bao-password >/dev/null && echo "age key decrypts the OpenBao seed"
+```
+
+Then everything works as before: `make up` applies the seed, and trusted clients keep trusting the same root.
 
 ## Check
 

@@ -93,8 +93,9 @@ make destroy  # removes everything libvirt-side; the host is back to its pre-lab
    (`scripts/pki-init.sh`, which refuses to run twice). Commit what it writes (`.sops.yaml`,
    `k8s/platform/step-ca/config/`, `k8s/platform/certificates/step-cluster-issuer.yaml`, and the OpenBao seed
    `k8s/platform/openbao/seed.enc.yaml`).
-2. **Back up** `.cache/ca/` and `.cache/age/key.txt`, for example to a password manager. They're git-ignored, and
-   without the age key nothing in `*.enc.yaml` can be decrypted.
+2. **Back up** `.cache/ca/` and `.cache/age/key.txt` with `make pki-backup` (age-encrypted, passphrase in your
+   password manager, file off voodoo). They're git-ignored, and without the age key nothing in `*.enc.yaml` can
+   be decrypted. Details and restore: `docs/runbooks/pki.md` § Backup & restore.
 3. `make trust-root` (sudo) on every machine that browses `*.lab.macpro`; other OSes in `docs/runbooks/pki.md`.
 
 After a rebuild nothing here repeats: `bootstrap-cluster.sh` re-applies the OpenBao seed (`make secrets`),
