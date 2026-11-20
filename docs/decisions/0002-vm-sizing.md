@@ -1,6 +1,6 @@
 # 0002: VM sizing: start minimal (1 vCPU / 1 GiB per VM)
 
-- Status: proposed (to confirm in Phase 1/2)
+- Status: accepted (the defaults below were the starting point; the Log tracks every change since)
 - Date: 2026-11-19
 
 ## Context

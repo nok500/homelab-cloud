@@ -17,7 +17,7 @@ bridge/firewall config without approval, or anything that risks the SSH session.
 | Router | OPNsense 26.7 (nano image) is `.1` on every subnet: DHCP (dnsmasq), DNS (Unbound), outbound NAT, pf firewall |
 | WAN | **macvtap (bridge mode) on the dedicated NIC `enp11s0`** (no host IP): OPNsense gets its own DHCP lease on the home LAN |
 | LAN → lab | Static route `10.10.0.0/16 via <OPNsense WAN>` on the admin workstation only (`make route`) |
-| Ingress policy | WAN default deny. `admin_cidrs` may reach OPNsense SSH/HTTPS/ICMP and the private subnet SSH/ICMP. WAN "block private networks" is off, since the WAN *is* an RFC1918 LAN |
+| Ingress policy | WAN default deny. `admin_cidrs` may reach OPNsense SSH/HTTPS/ICMP and, in the private subnet, ICMP plus SSH, Kubernetes API (6443), Talos API (50000) and the Gateway (80/443) (`admin_private_ports`, extended in Phase 2). WAN "block private networks" is off, since the WAN *is* an RFC1918 LAN |
 
 ## Why
 
