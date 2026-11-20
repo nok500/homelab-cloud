@@ -61,6 +61,13 @@ talosctl -n 10.10.1.21 logs kubelet
 
 Talos has no SSH; everything goes through its API on port 50000 (allowed from `admin_cidrs` only).
 
+## After `make up`
+
+`make up` returns only once every Argo CD Application is Synced/Healthy (it prints what's still pending every
+30 s; about 10–15 min after the cluster exists). Until then `https://*.lab.macpro` may fail: the wildcard
+certificate is the last link in the chain (ADR 0008). argocd-server logging `redis … connection refused`
+while it starts is normal: `argocd-redis` is its cache and comes up at the same time.
+
 ## Changing the Talos VMs (CPU, memory, disks)
 
 `terraform -chdir=terraform/host apply` reports these as "updated in-place", but the libvirt provider

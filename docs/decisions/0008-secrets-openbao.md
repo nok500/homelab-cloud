@@ -39,4 +39,8 @@ outside Secrets Manager.
 - OpenBao admin: `https://bao.lab.macpro`, method *Username*, user `admin`, password from `make bao-password`.
 - A new seeded value means changing `openbao-seed.sh` and the self-init config, then a rebuild (or writing it
   once by hand as admin). Self-init never runs again on existing storage.
+- Rebuilds converge in a chain: OpenBao → secret store → step-ca Secrets → step-ca → issuer → wildcard cert →
+  Gateway HTTPS. That's about 13 min after the old end of `make up`, mostly retry backoff (measured 2026-11-20).
+  `scripts/bootstrap-cluster.sh` now waits for every Application to be Synced/Healthy before returning, and
+  the chain's Applications retry from 10 s, capped at 2 min.
 - No recovery keys are generated (static seal + self-init). The unseal key in SOPS is the recovery story.

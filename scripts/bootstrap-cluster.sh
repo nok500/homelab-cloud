@@ -52,5 +52,19 @@ step "bootstrap secrets (SOPS: the OpenBao seed; everything else comes from Open
 step "root app-of-apps"
 kubectl apply -f "${ROOT}/k8s/bootstrap/root.yaml"
 
+step "waiting for Argo CD to converge (every Application Synced + Healthy; up to 25 min)"
+# Dependency chain after a rebuild: OpenBao -> secret store -> step-ca Secrets -> step-ca -> issuer -> wildcard
+# cert -> Gateway HTTPS. Each link waits on its own retry backoff, so this takes ~10-15 min. Without this wait
+# `make up` would return long before the lab is usable.
+deadline=$((SECONDS + 1500))
+while :; do
+  pending="$(kubectl -n argocd get applications --no-headers 2>/dev/null | awk '$2!="Synced" || $3!="Healthy" {print $1 "(" $2 "/" $3 ")"}' | tr '\n' ' ')"
+  count="$(kubectl -n argocd get applications --no-headers 2>/dev/null | wc -l)"
+  if [[ -z "${pending}" && "${count}" -gt 1 ]]; then echo "all ${count} Applications Synced/Healthy after $((SECONDS / 60)) min"; break; fi
+  (( SECONDS > deadline )) && { echo "not converged after 25 min: ${pending}" >&2; exit 1; }
+  printf '  %s pending: %s\n' "$(date +%H:%M:%S)" "${pending:-root app not synced yet}"
+  sleep 30
+done
+
 echo
 echo "Argo CD admin password: kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d"

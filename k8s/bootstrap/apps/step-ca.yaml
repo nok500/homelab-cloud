@@ -40,4 +40,4 @@ spec:
       - SkipDryRunOnMissingResource=true   # ExternalSecret CRD arrives with external-secrets
     retry:
       limit: 10
-      backoff: {duration: 30s, factor: 2, maxDuration: 5m}
+      backoff: {duration: 10s, factor: 2, maxDuration: 2m}
