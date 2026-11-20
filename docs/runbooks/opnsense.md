@@ -62,8 +62,16 @@ Fix: rebuild (ladder step 5). The disk holds nothing that isn't in Terraform. Pr
 (the user runs it, since sudo is needed):
 
 ```sh
-sudo sed -i 's/^#\?ON_SHUTDOWN=.*/ON_SHUTDOWN=shutdown/; s/^#\?SHUTDOWN_TIMEOUT=.*/SHUTDOWN_TIMEOUT=120/' /etc/conf.d/libvirt-guests
-sudo systemctl enable --now libvirt-guests
+# Arch ships no /etc/conf.d/libvirt-guests (the unit's EnvironmentFile is optional): create it.
+# Without it the default is ON_SHUTDOWN=suspend (RAM saved to disk, resumed with a stale clock).
+sudo tee /etc/conf.d/libvirt-guests >/dev/null <<'CONF'
+URIS=qemu:///system
+ON_BOOT=ignore            # VMs come back via libvirt autostart (set by Terraform)
+ON_SHUTDOWN=shutdown      # ACPI shutdown, not suspend/kill
+PARALLEL_SHUTDOWN=4       # all VMs at once
+SHUTDOWN_TIMEOUT=120      # then force off whatever is left
+CONF
+sudo systemctl enable --now libvirt-guests   # shows "active (exited)": it only acts at shutdown
 ```
 
 Other debugging sources: `sudo tail -50 /var/log/libvirt/qemu/opnsense.log` on the host;
