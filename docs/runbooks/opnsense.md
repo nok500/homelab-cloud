@@ -10,6 +10,66 @@ virsh -c qemu+ssh://macpro/system console opnsense                            # 
 
 Web UI: `https://<WAN IP>/` from an `admin_cidrs` source (WAN IP in `.cache/host/opnsense-wan.ip`).
 
+## Connectivity loss: find the hop, then recover
+
+Everything in the lab is reached through OPNsense, so "nothing answers" can be any hop between voodoo and the
+VMs. Find the first broken hop before restarting anything.
+
+### 1. Diagnose (from voodoo, in order)
+
+| # | Check | Healthy | If not |
+|---|---|---|---|
+| 1 | `ping -c1 192.168.8.207` | reply | **Host** is down or off the network: power, fans, cables, switch. `ip neigh show 192.168.8.207` showing `INCOMPLETE` means no ARP at all. Nothing below matters until this works. `make temps` once it's back |
+| 2 | `ip route get 10.10.1.20` | `via 192.168.8.115` | `make route` (gone after every voodoo reboot). Without it, Terraform hangs at `talos_machine_configuration_apply … Still creating…` |
+| 3 | `ssh macpro virsh -c qemu:///system list --all` | all `running` | `virsh -c qemu:///system start <vm>` (autostart covers normal host boots) |
+| 4 | `ssh macpro ip -br link show enp11s0` | `UP … LOWER_UP` | Reseat the 2nd NIC cable; macvtap recovers when the carrier returns |
+| 5 | `ping -c1 192.168.8.115` | reply | OPNsense itself: see the ladder below |
+| 6 | `ping -c1 10.10.1.20`, `make verify` | 23/23 | Firewall rules, Talos or the Gateway: [cluster-access.md](cluster-access.md) |
+
+The host can't reach OPNsense's WAN itself (macvtap doesn't hairpin to its own parent), so always test from
+voodoo, not from the Mac Pro.
+
+### 2. Recovery ladder (stop at the first that works)
+
+| Step | Command | Use when | Cost |
+|---|---|---|---|
+| 1. Renew WAN | SSH (see Access), then `configctl interface reconfigure wan` | WAN lost its lease, e.g. after a router reboot. The IP stays `.115` (fixed MAC) | seconds |
+| 2. Reload services | `configctl service reload all`, or console menu option 11 | WAN fine, but DNS, NAT or DHCP misbehave | seconds |
+| 3. Reboot the VM | `virsh -c qemu+ssh://macpro/system reboot opnsense` | SSH answers but things are wedged | 60–90 s |
+| 4. Hard reset | `virsh -c qemu+ssh://macpro/system reset opnsense` | No SSH, no console response | 60–90 s |
+| 5. Rebuild | `make destroy && make up` | Doesn't boot (below), or the config is broken | ~6.5 min; rebuilds the Talos nodes too (`replace_triggered_by`) |
+
+During steps 3–4 the Talos nodes keep running and keep their reserved IPs. Pods lose egress and DNS until
+OPNsense is back; in-cluster traffic keeps working. The config lives on OPNsense's disk, so a reboot or reset
+doesn't re-import anything.
+
+No SSH over the WAN: use the serial console (`virsh -c qemu+ssh://macpro/system console opnsense`, Ctrl-] exits).
+It needs the host up.
+
+### 3. OPNsense doesn't boot after a host reboot
+
+Seen on 2026-11-20 after the Mac Pro rebooted. `libvirt-guests` was disabled, so the VMs were killed rather
+than shut down, which is a power cut for OPNsense's UFS disk. Signature:
+
+- 100 % of its vCPU, the serial console silent (no reaction to Enter or Ctrl-T), WAN and `10.10.1.1` down.
+- The disk is barely touched: `virsh domblkstat opnsense vda` shows about 16 reads and 0 writes.
+- `virsh qemu-monitor-command opnsense --hmp 'info registers'` shows `EIP=000093xx` (not `RIP`), and `CR0`
+  flips between `…11` and `…10`. That's the FreeBSD BTX boot monitor making BIOS calls in a loop:
+  `gptboot` couldn't load `/boot/loader` and sits at its `boot:` prompt. That stage prints to VGA, which this
+  VM doesn't have, so it's invisible on serial.
+
+Fix: rebuild (ladder step 5). The disk holds nothing that isn't in Terraform. Prevention, once on the host
+(the user runs it, since sudo is needed):
+
+```sh
+sudo sed -i 's/^#\?ON_SHUTDOWN=.*/ON_SHUTDOWN=shutdown/; s/^#\?SHUTDOWN_TIMEOUT=.*/SHUTDOWN_TIMEOUT=120/' /etc/conf.d/libvirt-guests
+sudo systemctl enable --now libvirt-guests
+```
+
+Other debugging sources: `sudo tail -50 /var/log/libvirt/qemu/opnsense.log` on the host;
+`sudo qemu-img check -U /var/lib/libvirt/pools/homelab/opnsense.qcow2`; and, once it boots,
+`/var/log/system/latest.log` and `dmesg -a` inside OPNsense.
+
 ## How the first boot works
 
 1. Terraform renders `config.xml` from `terraform/host/templates/opnsense-config.xml.tftpl`, plus all three SSH

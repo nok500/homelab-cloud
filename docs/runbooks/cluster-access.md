@@ -10,7 +10,8 @@ export PATH=$PWD/.tools/bin:$PATH        # pinned talosctl
 ```
 
 Prerequisites on the workstation: the lab route (`make route`, once per boot) and DNS for `*.lab.macpro`
-(AdGuard rewrite to the Gateway, see `docs/bootstrap.md`).
+(AdGuard rewrite to the Gateway, see `docs/bootstrap.md`). If nothing answers, see
+[opnsense.md § Connectivity loss](opnsense.md#connectivity-loss-find-the-hop-then-recover).
 
 ## Argo CD UI
 
