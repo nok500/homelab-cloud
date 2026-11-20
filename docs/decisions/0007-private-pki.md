@@ -29,6 +29,10 @@ the public files from `.cache/ca` without touching any key.
 
 ## Consequences
 
+- The name constraint applies to the lab's own certificates too: every SAN must be under `lab.macpro` or
+  `cluster.local`. Short service names like `step-ca.step-ca.svc` are rejected; step-ca even refuses to start
+  (`DNS name "step-ca.step-ca.svc" is not permitted by any constraint`). Use the FQDN `*.svc.cluster.local`.
+
 - TLS terminates at the Gateway. Backends stay plain HTTP inside the cluster for now (Argo CD `server.insecure`).
 - Port 80 only redirects to 443. Every route attaches to the `https` listener.
 - Clients must trust the root: `make trust-root` on voodoo (p11-kit system store). Browsers with their own store

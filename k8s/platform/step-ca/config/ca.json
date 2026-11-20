@@ -6,7 +6,6 @@
   "address": "0.0.0.0:9000",
   "dnsNames": [
     "step-ca.step-ca.svc.cluster.local",
-    "step-ca.step-ca.svc",
     "127.0.0.1"
   ],
   "logger": {

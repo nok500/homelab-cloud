@@ -50,7 +50,9 @@ def main() -> int:
         "crt": "/home/step/certs/intermediate_ca.crt",
         "key": "/home/step/secrets/intermediate_ca_key",
         "address": "0.0.0.0:9000",
-        "dnsNames": [SVC, f"step-ca.{NS}.svc", "127.0.0.1"],
+        # only names under the root's name constraint (lab.macpro, cluster.local): step-ca refuses to start
+        # with e.g. "step-ca.step-ca.svc" ("not permitted by any constraint")
+        "dnsNames": [SVC, "127.0.0.1"],
         "logger": {"format": "json"},
         "db": {"type": "badgerv2", "dataSource": "/home/step/db"},
         "authority": {
