@@ -60,6 +60,13 @@ talosctl -n 10.10.1.21 logs kubelet
 
 Talos has no SSH; everything goes through its API on port 50000 (allowed from `admin_cidrs` only).
 
+## Changing the Talos VMs (CPU, memory, disks)
+
+`terraform -chdir=terraform/host apply` reports these as "updated in-place", but the libvirt provider
+**power-cycles the domain** to apply them. Every changed node reboots, and its pods restart elsewhere or
+wait for it. With a single control plane, changing `talos-cp-1` takes the API down for a few minutes.
+Change one role at a time, then run `make verify`.
+
 ## Changing what runs in the cluster
 
 GitOps only: edit `k8s/`, commit, push. Argo CD polls `main` (about 3 minutes), or refresh it now:
