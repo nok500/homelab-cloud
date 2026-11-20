@@ -7,6 +7,8 @@
 #   5. Gateway + TLS: programmed on its fixed IP, step-ca issues the *.lab.macpro wildcard, HTTP redirects
 #      to HTTPS, and argocd.lab.macpro serves a certificate that chains to the lab root.
 #   6. Storage: the default StorageClass binds a PVC on a worker data disk and a pod can write to it.
+#   7. Secrets: OpenBao initialized + unsealed, the ClusterSecretStore is valid, every ExternalSecret synced,
+#      and the OpenBao UI answers on https://bao.lab.macpro.
 # Waits (bounded) for things that converge after bootstrap, so it can run straight after `make up`.
 set -uo pipefail
 
@@ -137,6 +139,25 @@ check "PVC binds and a pod writes to it" kubectl -n "${PV_NS}" wait --for=jsonpa
 pv_path="$(kubectl get pv "$(kubectl -n "${PV_NS}" get pvc probe -o jsonpath='{.spec.volumeName}' 2>/dev/null)" -o jsonpath='{.spec.hostPath.path}{.spec.local.path}' 2>/dev/null)"
 [[ "${pv_path}" == /var/mnt/local-path-provisioner/* ]] && ok "PV on the worker data disk (${pv_path%%_*}…)" || bad "PV path '${pv_path}' (want /var/mnt/local-path-provisioner/…)"
 kubectl delete namespace "${PV_NS}" --wait=false >/dev/null 2>&1
+
+echo "7. Secrets"
+check "OpenBao ready" kubectl -n openbao rollout status statefulset/openbao --timeout=120s
+bao_status="$(kubectl -n openbao exec openbao-0 -- bao status -format=json 2>/dev/null)"
+python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(not (d["initialized"] and not d["sealed"] and d["type"]=="static"))' <<<"${bao_status}" 2>/dev/null \
+  && ok "OpenBao initialized + unsealed (static seal)" || bad "OpenBao status: ${bao_status//$'\n'/ }"
+store_ready() { kubectl get clustersecretstore openbao -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -qx True; }
+check "ClusterSecretStore openbao Ready" retry 18 10 store_ready
+es_synced() {
+  kubectl get externalsecrets -A -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name} {.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}' \
+    2>/dev/null | awk 'NF {n++; if ($2!="True") bad++} END {exit !(n > 0 && bad == 0)}'
+}
+if retry 18 10 es_synced; then
+  ok "all ExternalSecrets synced ($(kubectl get externalsecrets -A --no-headers | wc -l))"
+else
+  bad "ExternalSecrets not all synced:"; kubectl get externalsecrets -A 2>&1 | sed 's/^/       /'
+fi
+check "OpenBao UI https://bao.lab.macpro" \
+  retry 6 10 curl -fsS -m 5 -o /dev/null --cacert "${ROOT_CA}" --resolve "bao.lab.macpro:443:${GATEWAY_IP}" https://bao.lab.macpro/ui/
 
 echo
 printf '%d passed, %d failed\n' "${pass}" "${fail}"

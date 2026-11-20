@@ -12,7 +12,7 @@
 | CA server | **step-ca** 0.30.2 (chart `step-certificates` 1.30.1), `existingSecrets` mode | Real CA with ACME/JWK/OIDC provisioners. The chart can't mix `existingSecrets` with `inject`, so `ca.json` and the certs are plain ConfigMaps in Git (`k8s/platform/step-ca/config`) |
 | Issuing | **cert-manager** v1.21.3 + **step-issuer** 0.11.0 (chart 1.11.0), JWK provisioner | Wildcards need DNS-01 under ACME, and the lab DNS (AdGuard rewrite) has no API. step-issuer signs CSRs directly, wildcards included |
 | Certificate | One `*.lab.macpro` wildcard on the Gateway, 90 d, renewed at 60 d, key rotated each renewal | Like one ACM cert on an ALB. Every new service only needs an HTTPRoute |
-| Bootstrap secrets | **SOPS + age** (`*.enc.yaml`, only `data`/`stringData` encrypted), applied by `scripts/apply-bootstrap-secrets.sh` | As the brief asks: no plaintext secrets in Git. The age key is git-ignored. They move to OpenBao + External Secrets in milestone 3 |
+| Bootstrap secrets | **SOPS + age** (`*.enc.yaml`, only `data`/`stringData` encrypted), applied by `scripts/apply-bootstrap-secrets.sh` | As the brief asks: no plaintext secrets in Git. The age key is git-ignored. Since ADR 0008 the only SOPS file is the OpenBao seed; step-ca's secrets come from OpenBao |
 
 ## Where things live
 
@@ -20,7 +20,7 @@
 |---|---|---|
 | Root key, all passwords, provisioner private JWK | `.cache/ca/` (git-ignored, back it up) | yes: never leaves voodoo |
 | age private key | `.cache/age/key.txt` (git-ignored, back it up) | yes |
-| Intermediate key, CA password, provisioner password | `k8s/platform/step-ca/secrets.enc.yaml` | encrypted |
+| Intermediate key, CA password, provisioner password | OpenBao `secret/step-ca`, seeded from `k8s/platform/openbao/seed.enc.yaml` and synced by External Secrets ([ADR 0008](0008-secrets-openbao.md)) | encrypted |
 | `ca.json` (includes the provisioner key *encrypted with its password*: step-ca serves it to clients by design), certs | `k8s/platform/step-ca/config/` | no |
 | StepClusterIssuer (root bundle, provisioner kid) | `k8s/platform/certificates/step-cluster-issuer.yaml` | no |
 

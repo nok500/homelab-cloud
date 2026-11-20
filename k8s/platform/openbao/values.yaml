@@ -1,0 +1,127 @@
+---
+# OpenBao (Secrets Manager / KMS equivalent, ADR 0008). Single standalone instance on a local-path volume.
+# Its data is rebuilt on every `make destroy && make up` (regenerate + seed): it auto-unseals with a static
+# key and self-initializes from the `openbao-seed` Secret (seed.enc.yaml, SOPS), mounted at /openbao/seed.
+injector:
+  enabled: false
+ui:
+  enabled: true
+server:
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {memory: 384Mi}
+  dataStorage:
+    size: 1Gi
+  volumes:
+    - name: seed
+      secret:
+        secretName: openbao-seed
+  volumeMounts:
+    - name: seed
+      mountPath: /openbao/seed
+      readOnly: true
+  standalone:
+    enabled: true
+    config: |
+      ui = true
+      listener "tcp" {
+        # in-cluster plain HTTP; browsers reach it via the Gateway's TLS (bao.lab.macpro)
+        tls_disable     = 1
+        address         = "[::]:8200"
+        cluster_address = "[::]:8201"
+      }
+      storage "pebbledb" {
+        path = "/openbao/data/pebbledb"
+      }
+      # Auto-unseal with a static key from the seed Secret (no Shamir ceremony after every rebuild).
+      seal "static" {
+        current_key_id = "lab-1"
+        current_key    = "file:///openbao/seed/unseal.key"
+      }
+
+      # Declarative audit log to stdout (creating audit devices via the API is blocked by default)
+      audit "file" "stdout" {
+        description = "audit log to the pod log"
+        options {
+          file_path = "stdout"
+        }
+      }
+
+      # ---- self-initialization: runs once, on first start with empty storage ----
+      initialize "kv" {
+        request "mount" {
+          operation = "update"
+          path      = "sys/mounts/secret"
+          data      = { type = "kv", options = { version = "2" } }
+        }
+      }
+      initialize "admin" {
+        request "policy" {
+          operation = "update"
+          path      = "sys/policies/acl/admin"
+          data = {
+            policy = "path \"*\" { capabilities = [\"create\", \"read\", \"update\", \"delete\", \"list\", \"patch\", \"sudo\"] }"
+          }
+        }
+        request "userpass" {
+          operation = "update"
+          path      = "sys/auth/userpass"
+          data      = { type = "userpass" }
+        }
+        request "user" {
+          operation = "update"
+          path      = "auth/userpass/users/admin"
+          data = {
+            password       = { eval_type = "string", eval_source = "file", path = "/openbao/seed/admin-password" }
+            token_policies = ["admin"]
+          }
+        }
+      }
+      initialize "external-secrets" {
+        request "k8s-auth" {
+          operation = "update"
+          path      = "sys/auth/kubernetes"
+          data      = { type = "kubernetes" }
+        }
+        request "k8s-config" {
+          operation = "update"
+          path      = "auth/kubernetes/config"
+          data      = { kubernetes_host = "https://kubernetes.default.svc" }
+        }
+        # read everything under secret/, write only under secret/generated/ (PushSecret, later milestones)
+        request "policy" {
+          operation = "update"
+          path      = "sys/policies/acl/external-secrets"
+          data = {
+            policy = <<-EOT
+              path "secret/data/*"               { capabilities = ["read"] }
+              path "secret/metadata/*"           { capabilities = ["read", "list"] }
+              path "secret/data/generated/*"     { capabilities = ["create", "read", "update"] }
+              path "secret/metadata/generated/*" { capabilities = ["read", "list", "update", "delete"] }
+            EOT
+          }
+        }
+        request "role" {
+          operation = "update"
+          path      = "auth/kubernetes/role/external-secrets"
+          data = {
+            bound_service_account_names      = ["external-secrets"]
+            bound_service_account_namespaces = ["external-secrets"]
+            token_policies                   = ["external-secrets"]
+            token_ttl                        = "1h"
+          }
+        }
+      }
+      initialize "seed" {
+        request "step-ca" {
+          operation = "update"
+          path      = "secret/data/step-ca"
+          data = {
+            data = {
+              intermediate_ca_key   = { eval_type = "string", eval_source = "file", path = "/openbao/seed/step-ca-intermediate-key" }
+              ca_password           = { eval_type = "string", eval_source = "file", path = "/openbao/seed/step-ca-ca-password" }
+              provisioner_password  = { eval_type = "string", eval_source = "file", path = "/openbao/seed/step-ca-provisioner-password" }
+            }
+          }
+        }
+      }

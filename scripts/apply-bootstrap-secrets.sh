@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Apply the SOPS-encrypted bootstrap secrets (k8s/**/*.enc.yaml) to the lab cluster.
-# These are the few secrets Argo CD can't get from anywhere else yet; from Phase 3 milestone 3 they
-# come from OpenBao via External Secrets. Needs the age key in .cache/age/key.txt (see docs/runbooks/pki.md).
+# Today that's one file: the OpenBao seed (unseal key, admin password, seed values). OpenBao must find it
+# when it first starts; everything else then comes from OpenBao via External Secrets (ADR 0008). Needs the age key in .cache/age/key.txt (see docs/runbooks/pki.md).
 # Idempotent; called by bootstrap-cluster.sh, safe to run on its own.
 set -euo pipefail
 

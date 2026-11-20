@@ -5,7 +5,7 @@ metadata:
   name: step-ca
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   project: default
   sources:
@@ -23,6 +23,10 @@ spec:
     - repoURL: git@github.com:nok500/homelab-cloud.git
       targetRevision: main
       path: k8s/platform/step-ca/config
+    # its Secrets, as ExternalSecrets from OpenBao
+    - repoURL: git@github.com:nok500/homelab-cloud.git
+      targetRevision: main
+      path: k8s/platform/step-ca/secrets
   destination:
     server: https://kubernetes.default.svc
     namespace: step-ca
@@ -33,3 +37,7 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true   # ExternalSecret CRD arrives with external-secrets
+    retry:
+      limit: 10
+      backoff: {duration: 30s, factor: 2, maxDuration: 5m}

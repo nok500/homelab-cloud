@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: openbao-seed
+    namespace: openbao
+type: Opaque
+data:
+    unseal.key: ENC[AES256_GCM,data:JkZiuEEaJxzJy7JZZjwjrzYsOwJP0KwlZFhNuSNiLjET5/F77CekYeu+ml4=,iv:sJV7qpsL2xoWmVJbrAwXU34FMrqTLZ3ytnz0mQeA2qA=,tag:HDnOWM7eRbihokWox0RDPg==,type:str]
+    admin-password: ENC[AES256_GCM,data:KMSdOeRufQzSPo68iFsNlI8jR9iSTgr7iQtCmAuQkBrBFDBa81cEvt8soSPcFMXX1KauR3uMj9OJgSoi,iv:GNCyIyKFkwCUWrBzaIHsBHgcsMjB26yLRH6v9D+fP74=,tag:77UKYndzytZ40nw8NYwARw==,type:str]
+    step-ca-intermediate-key: ENC[AES256_GCM,data:cgzn1qlYQYhJ7JRKRtU4+QAg8Ija3MkZNDJL+8zOvUZjUKqwgkhQKTwZFg6ppBin7VFnNMDL7JCULnG+rjOH/Ny6Br91zRIoQuHE3cqA6UUlnGY18OzYOfMdPMPmHSAv+OhAW/1sgNQrMQgwHQDr7tH+bsu46LMeHIhkRRmoRqHVrC7/hcEBJdsx+8tDn8gbpIDc9NMKZ3fro7Yo+TrU21VYtIdWTP2Ofpuu03TH0rJm8PaSbt2gCnR2xxn1GH+bOQAT26SpieFlX6xoZhKKmEaQ8dtu5ceLM7YglzhUAv8b1NcirYnFwqKNxk1ELhfJchhuEK+oNkJBQSEhOqF9iMAGcOa6HnRu9XbY359BK7mm/ppv9AujHQeyihFnC28Cve/HPSyQvj9TCFFhAIw+JG/KBfM6+9BMXWmiRpSN75gGjCuu/zhNQS1xVej8KQ3MnJwyt1lMI6DALZClMG6rJZ0o2fXpTqPM6GOnqz6/rlVPF2EIDfM56EzCEP6r66mfykXP/tRQtKd94MTUS6vZhHwVoYmSThSJ0BiI1TQdrCCtt818,iv:NBBxmSiRSuskyOCij/y+Q9a4xlBuMOQjiDfJagPTx0M=,tag:nlt6mp4dYflkZRx29WV+NQ==,type:str]
+    step-ca-ca-password: ENC[AES256_GCM,data:V9kQ0FtCwz/WiuVGnWxD4WoIpPbDS2TPCXr6vaS/RatPmKLGCkUF3QFbY2ViJRiKcW8J644U6WGY0ts+,iv:Sihq7HanDaBrsXN0NpCjDDYL/xs+2OS6hylN9Py/Wv4=,tag:TsIZJuPtdGTBWWnZ4LR2hw==,type:str]
+    step-ca-provisioner-password: ENC[AES256_GCM,data:FEr+ShRpQfT9bLN9NTvQiEcabaZA5HR1j34jTV7am0WVvdFQ/8t/wqKz0r/IeA/GUwIxiUxom8YPLU1I,iv:BbSylc3vH7MPpmSsSrygSDtiAEicT9jdmr+3NmLdExs=,tag:YTBNi5HfUemTNgNoKHDv2g==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBSRHpPSTVWbkQydGM2TUps
+            WEJRR1huaUxGb2dmV3p4QS9sQUFQa09kTlJrCkRlNlNhOW1mRE5qdDByNGlCUWgv
+            SHZxeUxZeEFheDhpZEJ1RTJicStlOW8KLS0tIHZWd0tYTXhaaW5zT0Q3N3Jxd2RG
+            dFplTnliUVBmZEJ2TTM1ZUlpWDBaalEKqJ20+hxuT0n2wygEkyMqcFEeF6kDeAIs
+            4knvhpAn9QsuLSCrlGHAXC/U5Dlfdlw5oivanBDf6VeEqvKUk/qk2w==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age17fyy60lfzqer059rwjjae9f2lxe4lmrz4ns6jjccxrfkmjlcpv4s90lutm
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-11-20T15:24:18Z"
+    mac: ENC[AES256_GCM,data:Jx8sjAyoGCugBrDUCRnzhZaf3n6l222RGFYuJJZuF/cyL8Pkl6CXQT7xE2BUqn+02xQbPa3Mli467dbCTqTIX7ma5WW2WO1o991Ur9PLNVu4FZ2yYWlQ2fjtM0S0kMt2WarFg8ou2uvTvs+o2R2xNkImEU8fLvH7qHKSHYt9CA4=,iv:W403snurCQ7V2d8KV1+L7a+pHC9ZIigxwV0ZGc8bSyw=,tag:wFhd/O5yHKMRVdCCZ25fQg==,type:str]
+    version: 3.13.3

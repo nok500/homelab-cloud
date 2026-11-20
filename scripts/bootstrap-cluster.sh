@@ -39,14 +39,14 @@ step "Argo CD (chart ${ARGOCD_VERSION})"
 helm upgrade --install argocd argo-cd --repo https://argoproj.github.io/argo-helm --version "${ARGOCD_VERSION}" \
   --namespace argocd --create-namespace -f "${ROOT}/k8s/bootstrap/argocd/values.yaml" --wait --timeout 15m
 
-step "repository credential (read-only deploy key; moves to OpenBao + External Secrets in Phase 3)"
+step "repository credential (read-only deploy key: stays a bootstrap secret, Argo CD needs it before OpenBao exists)"
 [[ -f "${DEPLOY_KEY}" ]] || { echo "missing ${DEPLOY_KEY} (see docs/bootstrap.md)" >&2; exit 1; }
 kubectl -n argocd create secret generic repo-homelab-cloud \
   --from-literal=type=git --from-literal=url="${REPO_URL}" --from-file=sshPrivateKey="${DEPLOY_KEY}" \
   --dry-run=client -o yaml | kubectl label --local -f - argocd.argoproj.io/secret-type=repository -o yaml \
   | kubectl apply -f -
 
-step "bootstrap secrets (SOPS: step-ca intermediate key + passwords; move to OpenBao in milestone 3)"
+step "bootstrap secrets (SOPS: the OpenBao seed; everything else comes from OpenBao via External Secrets)"
 "${ROOT}/scripts/apply-bootstrap-secrets.sh"
 
 step "root app-of-apps"

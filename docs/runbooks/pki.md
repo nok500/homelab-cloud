@@ -38,8 +38,8 @@ openssl s_client -connect 10.10.1.200:443 -servername argocd.lab.macpro </dev/nu
 
 | Job | How |
 |---|---|
-| Edit a bootstrap secret | `SOPS_AGE_KEY_FILE=.cache/age/key.txt .tools/bin/sops k8s/platform/step-ca/secrets.enc.yaml`, then `make secrets` |
+| Change a step-ca secret | They live in OpenBao `secret/step-ca`, seeded from `.cache/ca` by `make openbao-seed` ([secrets.md](secrets.md)) |
 | Re-render `ca.json` / issuer after changing `scripts/pki-render.py` | `python3 scripts/pki-render.py`, then commit and push |
 | Force a renewal | `kubectl -n gateway delete secret lab-wildcard-tls` (cert-manager re-issues within seconds) |
 | Cert stuck not Ready | `kubectl -n gateway describe certificaterequest`; `kubectl -n step-issuer logs deploy/step-issuer`; `kubectl -n step-ca logs sts/step-ca` |
-| New PKI (last resort) | `rm -rf .cache/ca` (keep `.cache/age`), then `make pki`, commit, push, `make secrets`, re-trust everywhere |
+| New PKI (last resort) | `rm -rf .cache/ca` (keep `.cache/age`), then `make pki` (it also rebuilds the OpenBao seed), commit, push, rebuild, re-trust everywhere |

@@ -87,8 +87,15 @@ unroute: ## Remove the lab route from this workstation (sudo)
 pki: tools ## ONE-TIME: lab root/intermediate CA + age key (refuses to overwrite; back up .cache/ca + .cache/age)
 	scripts/pki-init.sh
 
-secrets: ## Apply the SOPS-encrypted bootstrap secrets to the cluster
+secrets: ## Apply the SOPS-encrypted bootstrap secrets (the OpenBao seed) to the cluster
 	scripts/apply-bootstrap-secrets.sh
+
+.PHONY: openbao-seed bao-password
+openbao-seed: ## Rebuild the SOPS OpenBao seed (keeps unseal key + admin password); commit + push after
+	scripts/openbao-seed.sh
+
+bao-password: ## Print the OpenBao `admin` password (https://bao.lab.macpro, method Username)
+	@SOPS_AGE_KEY_FILE=.cache/age/key.txt .tools/bin/sops --decrypt --extract '["data"]["admin-password"]' k8s/platform/openbao/seed.enc.yaml | base64 -d; echo
 
 trust-root: ## sudo: trust the lab root CA on this workstation (system store, p11-kit)
 	sudo trust anchor --store k8s/platform/step-ca/config/root_ca.crt

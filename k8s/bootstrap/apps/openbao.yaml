@@ -1,0 +1,36 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: openbao
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: default
+  sources:
+    # 2.7.3 despite being new: it fixes GHSA-fgmw-h9wp-wc7g and GHSA-h8fh-pmch-cjww (ADR 0008)
+    - repoURL: https://openbao.github.io/openbao-helm
+      chart: openbao
+      targetRevision: 0.30.8
+      helm:
+        releaseName: openbao
+        valueFiles:
+          - $values/k8s/platform/openbao/values.yaml
+    - repoURL: git@github.com:nok500/homelab-cloud.git
+      targetRevision: main
+      ref: values
+    # UI at https://bao.lab.macpro
+    - repoURL: git@github.com:nok500/homelab-cloud.git
+      targetRevision: main
+      path: k8s/platform/openbao/route
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openbao
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

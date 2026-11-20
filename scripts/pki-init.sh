@@ -2,8 +2,8 @@
 # ONE-TIME: the lab's private PKI (ACM equivalent, ADR 0007) and the age key for SOPS.
 #
 #   root CA (10 y, name-constrained to lab.macpro + cluster.local)  -> key stays OFFLINE in .cache/ca
-#   intermediate CA (5 y)                                           -> key + password SOPS-encrypted in Git
-#   JWK provisioner "step-issuer" (cert-manager's way in)           -> password SOPS-encrypted in Git
+#   intermediate CA (5 y)                                           -> key + password into the OpenBao seed (SOPS)
+#   JWK provisioner "step-issuer" (cert-manager's way in)           -> password into the OpenBao seed (SOPS)
 #
 # Survives `make destroy && make up`, so the root is trusted once per machine. Refuses to run twice:
 # a new root means re-trusting it everywhere. BACK UP .cache/ca and .cache/age (password manager / offline).
@@ -70,30 +70,9 @@ umask 022
 echo ">> public material -> Git"
 python3 -I "${ROOT}/scripts/pki-render.py"
 
-echo ">> secrets -> SOPS"
-umask 077
-python3 -I - "${CA}" "${NS}" > "${CA}/secrets.yaml" <<'EOF'
-import sys, yaml
-ca, ns = sys.argv[1:]
-rd = lambda f: open(f"{ca}/{f}").read()
-class Lit(str): pass
-yaml.add_representer(Lit, lambda d, s: d.represent_scalar("tag:yaml.org,2002:str", s, style="|"))
-docs = [
-    {"apiVersion": "v1", "kind": "Secret", "type": "smallstep.com/private-keys",
-     "metadata": {"name": "step-ca-secrets", "namespace": ns},
-     "stringData": {"intermediate_ca_key": Lit(rd("intermediate_ca_key"))}},
-    {"apiVersion": "v1", "kind": "Secret", "type": "smallstep.com/ca-password",
-     "metadata": {"name": "step-ca-ca-password", "namespace": ns},
-     "stringData": {"password": rd("intermediate.pass").strip()}},
-    {"apiVersion": "v1", "kind": "Secret",
-     "metadata": {"name": "step-issuer-provisioner-password", "namespace": ns},
-     "stringData": {"password": rd("provisioner.pass").strip()}},
-]
-print("---\n" + "---\n".join(yaml.dump(d, sort_keys=False) for d in docs), end="")
-EOF
-(cd "${ROOT}" && sops --encrypt --filename-override "${OUT}/secrets.enc.yaml" "${CA}/secrets.yaml" > "${OUT}/secrets.enc.yaml")
-rm -f "${CA}/secrets.yaml"
-chmod 0644 "${OUT}/secrets.enc.yaml"
+echo ">> seed secrets -> SOPS (OpenBao seeds itself from these; ADR 0008)"
+umask 022
+"${ROOT}/scripts/openbao-seed.sh"
 
 echo
 step certificate inspect "${CA}/root_ca.crt" --short
