@@ -19,5 +19,7 @@ workstation. Dev tools (pre-commit, tflint, gitleaks) could come from the distro
 
 - `make destroy && make up` can't accidentally depend on files that only exist on the host.
 - The host only needs libvirt/QEMU and SSH (documented in `bootstrap.md`).
-- Tool upgrades are explicit commits (bump the version variable in the script).
+- Tool upgrades are explicit commits (bump the version variable in the script). Pinned now: tflint 0.66.0,
+  gitleaks 8.30.1, pre-commit 4.7.0, talosctl 1.14.6, sops 3.13.3, age 1.3.2 (hash pinned: age publishes Sigsum
+  proofs, no checksum file), step 0.31.0.
 - Linux/amd64 only for now; CI runners match.

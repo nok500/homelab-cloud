@@ -19,8 +19,8 @@
   the pod is pinned to that node from then on.
 
 **Consequence:** node-local data doesn't survive losing its node. Anything that matters gets its durability one
-level up: CNPG replicates and backs up to S3, Harbor stores blobs in S3, and OpenBao data can be rebuilt from Git
-plus its backups. Same rule as instance store on AWS.
+level up: CNPG replicates and backs up to S3, Harbor stores blobs in S3, and OpenBao is rebuilt and re-seeded
+([ADR 0008](0008-secrets-openbao.md)). Same rule as instance store on AWS.
 
 ## Terraform state: Garage on the Mac Pro host, outside the lab
 

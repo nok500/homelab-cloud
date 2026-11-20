@@ -8,7 +8,7 @@
 | Piece | Choice | Why |
 |---|---|---|
 | OS / Kubernetes | Talos v1.14.6, Kubernetes 1.37.2, 1 control plane + 2 workers | Immutable, API-driven OS: the closest local equivalent of a managed node group. No SSH, no drift |
-| Image | Image Factory `metal` qcow2, schematic `ce4c98…` (qemu-guest-agent) | Content-addressed schematic pins the extension set; image hash pinned in `scripts/fetch-images.sh` |
+| Image | Image Factory `metal` qcow2, schematic `ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515` (qemu-guest-agent) | Content-addressed schematic pins the extension set; image hash pinned in `scripts/fetch-images.sh` |
 | Node addressing | OPNsense DHCP reservations (MAC → `10.10.1.20–22`), names `talos-*.lab.macpro` | Nodes boot into maintenance mode at a known IP, so `terraform/talos` can apply config with no manual step |
 | DNS / time | OPNsense (`10.10.1.1`) via `ResolverConfig` / `TimeSyncConfig` | Like the Route 53 Resolver and AWS Time Sync: one in-VPC source |
 | CNI / LB / ingress | Cilium 1.20.5: kube-proxy replacement, LB IPAM + L2 announcements (`10.10.1.200–220`), Gateway API (CRDs v1.6.3) | One component instead of CNI + MetalLB + an ingress controller, which matters at 1 GiB per node |
@@ -18,7 +18,8 @@
 
 Nodes stay `NotReady` without a CNI, and Argo CD can't run without one, so Argo can't install Cilium.
 `scripts/bootstrap-cluster.sh` breaks the loop **once**: CRDs → `helm install` Cilium → wait for nodes Ready →
-`helm install` Argo CD → repo credential → root app. It reads the chart versions from the Application
+`helm install` Argo CD → repo credential → bootstrap secrets (SOPS) → root app → wait until every Application
+is Synced/Healthy. It reads the chart versions from the Application
 manifests, so Argo then adopts the same releases with the same values. After that, changes go through Git only.
 
 ## Talos 1.14 specifics (learned the hard way)

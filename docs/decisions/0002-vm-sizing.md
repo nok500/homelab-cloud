@@ -50,5 +50,6 @@ Sizes are **Terraform variables per role**. Defaults follow the owner's request:
 
 ## Consequences
 
-Resizing means changing a variable and running `terraform apply` (the VM restarts). Each bump is recorded here with its
+Resizing means changing a variable and running `terraform apply` (the VM restarts; for Talos nodes that's a
+reboot, see `docs/runbooks/cluster-access.md`). Each bump is recorded here with its
 reason, which shows how the footprint grows phase by phase.

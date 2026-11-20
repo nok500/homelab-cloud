@@ -15,9 +15,9 @@ LAN already runs AdGuard Home, which the brief says must not be reconfigured wit
 - **Inside the VPC:** OPNsense Unbound answers `lab.macpro` itself and **forwards everything else to AdGuard
   Home at `192.168.8.1:53`** (web UI on `:3000`), instead of recursing from the root servers. Lab DNS then gets the home filtering and logging.
   This needs no change in AdGuard.
-- **From the LAN:** a single **DNS rewrite** in AdGuard, `*.lab.macpro → <Cilium Gateway LB IP>` (option a).
-  Every service goes through the one Gateway, which routes by hostname. The owner adds this entry by hand
-  once the Gateway IP exists; the exact entry goes in `docs/bootstrap.md`.
+- **From the LAN:** a single **DNS rewrite** in AdGuard, `*.lab.macpro → 10.10.1.200` (the Cilium Gateway,
+  option a). Every service goes through the one Gateway, which routes by hostname. Added by hand by the owner
+  (done), documented in `docs/bootstrap.md`.
 
 - **Time (same Phase 2 change):** the home router doesn't serve NTP, so OPNsense syncs from the ntp.org pool
   (`uk.pool.ntp.org`, one pool instead of the four `opnsense.pool.ntp.org` defaults) and serves NTP to the VPC.
@@ -39,4 +39,4 @@ Checked 2026-11-19 from OPNsense: AdGuard answers (`drill @192.168.8.1`), filter
 
 - LAN devices resolve `*.lab.macpro`, but can only connect if they have a route to `10.10.0.0/16`. Today that's only
   the admin workstation (`make route`); a static route on the home router is a separate decision.
-- cert-manager and step-ca (Phase 3) issue certificates for `*.lab.macpro`.
+- cert-manager and step-ca issue the `*.lab.macpro` wildcard ([ADR 0007](0007-private-pki.md)).
