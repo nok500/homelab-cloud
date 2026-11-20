@@ -24,7 +24,7 @@ VMs. Find the first broken hop before restarting anything.
 | 3 | `ssh macpro virsh -c qemu:///system list --all` | all `running` | `virsh -c qemu:///system start <vm>` (autostart covers normal host boots) |
 | 4 | `ssh macpro ip -br link show enp11s0` | `UP … LOWER_UP` | Reseat the 2nd NIC cable; macvtap recovers when the carrier returns |
 | 5 | `ping -c1 192.168.8.115` | reply | OPNsense itself: see the ladder below |
-| 6 | `ping -c1 10.10.1.20`, `make verify` | 23/23 | Firewall rules, Talos or the Gateway: [cluster-access.md](cluster-access.md) |
+| 6 | `ping -c1 10.10.1.20`, `make verify` | all PASS | Firewall rules, Talos or the Gateway: [cluster-access.md](cluster-access.md) |
 
 The host can't reach OPNsense's WAN itself (macvtap doesn't hairpin to its own parent), so always test from
 voodoo, not from the Mac Pro.
