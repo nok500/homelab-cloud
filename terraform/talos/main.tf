@@ -65,6 +65,22 @@ locals {
     EOT
   }
 
+  # Workers: the second disk (vdb) becomes a Talos user volume, mounted at /var/mnt/local-path-provisioner,
+  # where local-path-provisioner creates PV directories (k8s/platform/local-path).
+  worker_patches = [<<-EOT
+    apiVersion: v1alpha1
+    kind: UserVolumeConfig
+    name: local-path-provisioner
+    provisioning:
+      diskSelector:
+        match: disk.dev_path == "/dev/vdb"
+      minSize: 1GiB
+      grow: true
+    filesystem:
+      type: xfs
+    EOT
+  ]
+
   # Control plane only (these kinds are rejected on workers): no built-in CNI (Cilium instead)
   # and no kube-proxy (Cilium's kube-proxy replacement).
   controlplane_patches = [<<-EOT
@@ -102,7 +118,7 @@ data "talos_machine_configuration" "node" {
   config_patches = concat(
     local.common_patches,
     [local.hostname_patch[each.key]],
-    each.value.role == "controlplane" ? local.controlplane_patches : [],
+    each.value.role == "controlplane" ? local.controlplane_patches : local.worker_patches,
   )
 }
 

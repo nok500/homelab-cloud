@@ -5,6 +5,7 @@
 #   3. Cilium: agents and operator healthy, LB pool has IPs, L2 announcement policy present.
 #   4. Argo CD: every Application Synced + Healthy.
 #   5. Gateway: programmed on its fixed IP, argocd.lab.macpro answers through it.
+#   6. Storage: the default StorageClass binds a PVC on a worker data disk and a pod can write to it.
 # Waits (bounded) for things that converge after bootstrap, so it can run straight after `make up`.
 set -uo pipefail
 
@@ -87,6 +88,37 @@ if getent hosts "${ARGOCD_HOST}" | grep -q "^${GATEWAY_IP} "; then
 else
   bad "${ARGOCD_HOST} does not resolve to ${GATEWAY_IP}: check the AdGuard *.lab.macpro rewrite"
 fi
+
+echo "6. Storage"
+check "default StorageClass is local-path" sh -c "kubectl get sc local-path -o jsonpath='{.metadata.annotations.storageclass\\.kubernetes\\.io/is-default-class}' | grep -qx true"
+PV_NS="verify-storage-$$"
+kubectl create namespace "${PV_NS}" >/dev/null 2>&1
+kubectl -n "${PV_NS}" apply -f - >/dev/null 2>&1 <<'YAML'
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: probe}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: 64Mi}}
+---
+apiVersion: v1
+kind: Pod
+metadata: {name: probe}
+spec:
+  securityContext: {runAsNonRoot: true, runAsUser: 65534, fsGroup: 65534, seccompProfile: {type: RuntimeDefault}}
+  restartPolicy: Never
+  containers:
+    - name: probe
+      image: busybox:1.37.0
+      command: [sh, -c, "echo ok > /data/probe && cat /data/probe"]
+      securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+      volumeMounts: [{name: data, mountPath: /data}]
+  volumes: [{name: data, persistentVolumeClaim: {claimName: probe}}]
+YAML
+check "PVC binds and a pod writes to it" kubectl -n "${PV_NS}" wait --for=jsonpath='{.status.phase}'=Succeeded pod/probe --timeout=120s
+pv_path="$(kubectl get pv "$(kubectl -n "${PV_NS}" get pvc probe -o jsonpath='{.spec.volumeName}' 2>/dev/null)" -o jsonpath='{.spec.hostPath.path}{.spec.local.path}' 2>/dev/null)"
+[[ "${pv_path}" == /var/mnt/local-path-provisioner/* ]] && ok "PV on the worker data disk (${pv_path%%_*}…)" || bad "PV path '${pv_path}' (want /var/mnt/local-path-provisioner/…)"
+kubectl delete namespace "${PV_NS}" --wait=false >/dev/null 2>&1
 
 echo
 printf '%d passed, %d failed\n' "${pass}" "${fail}"

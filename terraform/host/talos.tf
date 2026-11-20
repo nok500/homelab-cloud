@@ -33,6 +33,21 @@ resource "libvirt_volume" "talos_disk" {
   }
 }
 
+# Workers get a second disk for persistent volumes: Talos formats it as the `local-path-provisioner`
+# user volume (/var/mnt/local-path-provisioner, see terraform/talos), kept apart from the system disk so
+# PVs can't fill EPHEMERAL (containerd, logs) and starve the node.
+resource "libvirt_volume" "talos_data" {
+  for_each = { for name, n in local.talos_nodes : name => n if n.role == "worker" }
+
+  name     = "${each.key}-data.qcow2"
+  pool     = libvirt_pool.lab.name
+  capacity = var.worker_data_disk_gb * 1024 * 1024 * 1024
+
+  target = {
+    format = { type = "qcow2" }
+  }
+}
+
 resource "libvirt_domain" "talos" {
   for_each = local.talos_nodes
 
@@ -60,11 +75,18 @@ resource "libvirt_domain" "talos" {
   }
 
   devices = {
-    disks = [{
-      source = { volume = { pool = libvirt_volume.talos_disk[each.key].pool, volume = libvirt_volume.talos_disk[each.key].name } }
-      target = { bus = "virtio", dev = "vda" }
-      driver = { type = "qcow2" }
-    }]
+    disks = concat(
+      [{
+        source = { volume = { pool = libvirt_volume.talos_disk[each.key].pool, volume = libvirt_volume.talos_disk[each.key].name } }
+        target = { bus = "virtio", dev = "vda" }
+        driver = { type = "qcow2" }
+      }],
+      each.value.role == "worker" ? [{
+        source = { volume = { pool = libvirt_volume.talos_data[each.key].pool, volume = libvirt_volume.talos_data[each.key].name } }
+        target = { bus = "virtio", dev = "vdb" }
+        driver = { type = "qcow2" }
+      }] : [],
+    )
 
     interfaces = [{
       model  = { type = "virtio" }

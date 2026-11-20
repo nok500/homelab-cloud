@@ -43,6 +43,12 @@ variable "timezone" {
   default = "Europe/London"
 }
 
+variable "worker_data_disk_gb" {
+  description = "Size of each worker's persistent-volume disk (vdb, thin-provisioned qcow2)"
+  type        = number
+  default     = 40
+}
+
 variable "vm_sizes" {
   description = "Per-role VM sizing (ADR 0002). memory in MiB, disk in GiB."
   type = map(object({

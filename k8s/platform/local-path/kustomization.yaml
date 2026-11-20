@@ -1,0 +1,12 @@
+---
+# local-path-provisioner: node-local PVs (the "instance store" of this lab; ADR 0006).
+# Upstream manifest pinned by tag, patched for Talos: PVs go to the worker data disk mounted by the
+# `local-path-provisioner` UserVolumeConfig, and the namespace must allow the hostPath helper pods.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.37/deploy/local-path-storage.yaml
+patches:
+  - path: namespace.yaml
+  - path: config.yaml
+  - path: storageclass.yaml
