@@ -141,7 +141,8 @@ pv_path="$(kubectl get pv "$(kubectl -n "${PV_NS}" get pvc probe -o jsonpath='{.
 kubectl delete namespace "${PV_NS}" --wait=false >/dev/null 2>&1
 
 echo "7. Secrets"
-check "OpenBao ready" kubectl -n openbao rollout status statefulset/openbao --timeout=120s
+# the chart uses updateStrategy OnDelete, which `rollout status` rejects: check the pod instead
+check "OpenBao ready" kubectl -n openbao wait --for=condition=Ready pod/openbao-0 --timeout=120s
 bao_status="$(kubectl -n openbao exec openbao-0 -- bao status -format=json 2>/dev/null)"
 python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(not (d["initialized"] and not d["sealed"] and d["type"]=="static"))' <<<"${bao_status}" 2>/dev/null \
   && ok "OpenBao initialized + unsealed (static seal)" || bad "OpenBao status: ${bao_status//$'\n'/ }"
