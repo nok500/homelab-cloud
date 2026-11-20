@@ -90,7 +90,8 @@ check "StepClusterIssuer step-ca Ready" retry 18 10 issuer_ready
 cert_ready() { kubectl -n gateway get certificate lab-wildcard -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -qx True; }
 check "Certificate *.lab.macpro issued" retry 18 10 cert_ready
 redirect="$(curl -sS -m 5 -o /dev/null -w '%{http_code} %{redirect_url}' "${RESOLVE[@]}" "http://${ARGOCD_HOST}/" 2>/dev/null)"
-[[ "${redirect}" == "301 https://${ARGOCD_HOST}/"* ]] && ok "HTTP redirects to HTTPS" || bad "HTTP redirect (got '${redirect}')"
+# Cilium writes the default port into Location (https://host:443/); equivalent for every client
+[[ "${redirect}" =~ ^301\ https://${ARGOCD_HOST}(:443)?/ ]] && ok "HTTP redirects to HTTPS" || bad "HTTP redirect (got '${redirect}')"
 check "HTTPS ${ARGOCD_HOST} verifies against the lab root" \
   retry 6 10 curl -fsS -m 5 -o /dev/null --cacert "${ROOT_CA}" "${RESOLVE[@]}" "https://${ARGOCD_HOST}/"
 issuer="$(echo | openssl s_client -connect "${GATEWAY_IP}:443" -servername "${ARGOCD_HOST}" 2>/dev/null | openssl x509 -noout -issuer 2>/dev/null)"
