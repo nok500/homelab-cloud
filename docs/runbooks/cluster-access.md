@@ -23,7 +23,7 @@ Prerequisites on the workstation: the lab route (`make route`, once per boot), t
 | Password | `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' \| base64 -d; echo` |
 
 The initial password is random per install, so it changes after every `make destroy && make up`.
-Local admin only for now; SSO via Keycloak (OIDC) comes in Phase 3.
+Local admin only for now; SSO via Keycloak (OIDC) comes in Phase 3 milestone 6.
 
 Optional hardening, per the Argo CD docs: change the password, then delete the bootstrap secret:
 
@@ -85,4 +85,5 @@ kubectl -n argocd annotate application root argocd.argoproj.io/refresh=hard --ov
 
 Argo CD reads the private repo with a **read-only deploy key** (`.cache/cluster/argocd-deploy-key`, public half
 on the repo under Settings → Deploy keys), loaded by `scripts/bootstrap-cluster.sh` as the
-`repo-homelab-cloud` secret. It moves to OpenBao + External Secrets in Phase 3.
+`repo-homelab-cloud` secret. It stays a bootstrap secret: Argo CD needs it before OpenBao exists
+(ADR 0008). Every other secret comes from OpenBao, see [secrets.md](secrets.md).
