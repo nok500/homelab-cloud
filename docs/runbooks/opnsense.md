@@ -58,8 +58,9 @@ than shut down, which is a power cut for OPNsense's UFS disk. Signature:
   `gptboot` couldn't load `/boot/loader` and sits at its `boot:` prompt. That stage prints to VGA, which this
   VM doesn't have, so it's invisible on serial.
 
-Fix: rebuild (ladder step 5). The disk holds nothing that isn't in Terraform. Prevention, once on the host
-(the user runs it, since sudo is needed):
+Fix: rebuild (ladder step 5). The disk holds nothing that isn't in Terraform. Prevention: stop the lab with
+`make shutdown` / `make poweroff` before any host shutdown ([power.md](power.md)), plus this safety net, once on
+the host (the user runs it, since sudo is needed):
 
 ```sh
 # Arch ships no /etc/conf.d/libvirt-guests (the unit's EnvironmentFile is optional): create it.

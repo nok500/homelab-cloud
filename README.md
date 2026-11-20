@@ -76,6 +76,7 @@ make temps    # host CPU temperatures
 make up       # build the lab: VPC + OPNsense, Talos cluster, Cilium, Argo CD (~15 min)
 make route    # sudo: route 10.10.0.0/16 via OPNsense on this workstation
 make verify   # cluster acceptance checks (verify-host: Phase 1, needs the test VM)
+make shutdown # safe stop of all VMs (make poweroff: also the Mac Pro; make start: back up)
 make destroy  # tear it down
 ```
 

@@ -73,6 +73,16 @@ down destroy: init ## Tear the lab down completely (cluster state first, then th
 	$(TF_HOST) destroy -input=false $(TF_APPROVE)
 	rm -f .cache/cluster/kubeconfig .cache/cluster/talosconfig
 
+.PHONY: shutdown poweroff start
+shutdown: ## Safe stop of all lab VMs: drain + stop workers, control plane, then OPNsense (host stays up)
+	scripts/lab-shutdown.sh
+
+poweroff: ## shutdown, then power off the Mac Pro (asks for the sudo password on macpro)
+	POWEROFF=1 scripts/lab-shutdown.sh
+
+start: ## Start the lab VMs after `make shutdown` (OPNsense first); not needed after a host power-on
+	scripts/lab-start.sh
+
 .PHONY: route
 route: ## Route the lab CIDR via the OPNsense WAN on this workstation (sudo)
 	@test -s $(WAN_IP_FILE) || { echo "no WAN IP yet, run make up" >&2; exit 1; }
