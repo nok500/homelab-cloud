@@ -99,7 +99,8 @@ Any change to the template or keys replaces the ISO, the disk and the VM (a fres
 |---|---|---|---|---|---|
 | 1–3 | private/public/data | that subnet | any | any | egress (NAT on WAN) |
 | 100+ | WAN | each `admin_cidrs` entry | firewall | 22, 443, ICMP | management |
-| 103+ | WAN | each `admin_cidrs` entry | private net | 22 (logged), ICMP | admin access to VMs |
+| 103 | WAN | each `admin_cidrs` entry | private net | ICMP | ping VMs / nodes |
+| 104+ | WAN | each `admin_cidrs` entry | private net | 22 (logged), 6443, 50000, 80, 443 | SSH, Kubernetes API, Talos API, Gateway HTTP/HTTPS (`admin_private_ports` in `terraform/host/locals.tf`) |
 
 Everything else inbound on WAN hits the default deny. Rule management moves to the
-`browningluke/opnsense` Terraform provider once an API key is provisioned (Phase 2).
+`browningluke/opnsense` Terraform provider once an API key is provisioned (open item).
