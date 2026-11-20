@@ -46,6 +46,9 @@ kubectl -n argocd create secret generic repo-homelab-cloud \
   --dry-run=client -o yaml | kubectl label --local -f - argocd.argoproj.io/secret-type=repository -o yaml \
   | kubectl apply -f -
 
+step "bootstrap secrets (SOPS: step-ca intermediate key + passwords; move to OpenBao in milestone 3)"
+"${ROOT}/scripts/apply-bootstrap-secrets.sh"
+
 step "root app-of-apps"
 kubectl apply -f "${ROOT}/k8s/bootstrap/root.yaml"
 

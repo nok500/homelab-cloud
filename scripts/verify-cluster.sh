@@ -4,7 +4,8 @@
 #   2. Kubernetes: all nodes Ready, no kube-proxy, CoreDNS resolves in-cluster and external names.
 #   3. Cilium: agents and operator healthy, LB pool has IPs, L2 announcement policy present.
 #   4. Argo CD: every Application Synced + Healthy.
-#   5. Gateway: programmed on its fixed IP, argocd.lab.macpro answers through it.
+#   5. Gateway + TLS: programmed on its fixed IP, step-ca issues the *.lab.macpro wildcard, HTTP redirects
+#      to HTTPS, and argocd.lab.macpro serves a certificate that chains to the lab root.
 #   6. Storage: the default StorageClass binds a PVC on a worker data disk and a pod can write to it.
 # Waits (bounded) for things that converge after bootstrap, so it can run straight after `make up`.
 set -uo pipefail
@@ -81,8 +82,24 @@ fi
 echo "5. Gateway"
 gw_ready() { kubectl -n gateway get gateway lab -o jsonpath='{.status.addresses[0].value} {.status.conditions[?(@.type=="Programmed")].status}' | grep -qx "${GATEWAY_IP} True"; }
 check "Gateway lab programmed on ${GATEWAY_IP}" retry 18 10 gw_ready
-check "HTTP ${ARGOCD_HOST} via ${GATEWAY_IP} (no DNS needed)" \
-  retry 6 10 curl -fsS -m 5 -o /dev/null --resolve "${ARGOCD_HOST}:80:${GATEWAY_IP}" "http://${ARGOCD_HOST}/"
+ROOT_CA="${ROOT}/k8s/platform/step-ca/config/root_ca.crt"
+RESOLVE=(--resolve "${ARGOCD_HOST}:80:${GATEWAY_IP}" --resolve "${ARGOCD_HOST}:443:${GATEWAY_IP}")
+check "step-ca ready" kubectl -n step-ca rollout status statefulset/step-ca --timeout=120s
+issuer_ready() { kubectl get stepclusterissuer step-ca -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -qx True; }
+check "StepClusterIssuer step-ca Ready" retry 18 10 issuer_ready
+cert_ready() { kubectl -n gateway get certificate lab-wildcard -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -qx True; }
+check "Certificate *.lab.macpro issued" retry 18 10 cert_ready
+redirect="$(curl -sS -m 5 -o /dev/null -w '%{http_code} %{redirect_url}' "${RESOLVE[@]}" "http://${ARGOCD_HOST}/" 2>/dev/null)"
+[[ "${redirect}" == "301 https://${ARGOCD_HOST}/"* ]] && ok "HTTP redirects to HTTPS" || bad "HTTP redirect (got '${redirect}')"
+check "HTTPS ${ARGOCD_HOST} verifies against the lab root" \
+  retry 6 10 curl -fsS -m 5 -o /dev/null --cacert "${ROOT_CA}" "${RESOLVE[@]}" "https://${ARGOCD_HOST}/"
+issuer="$(echo | openssl s_client -connect "${GATEWAY_IP}:443" -servername "${ARGOCD_HOST}" 2>/dev/null | openssl x509 -noout -issuer 2>/dev/null)"
+[[ "${issuer}" == *"homelab-cloud Intermediate CA"* ]] && ok "served cert issued by the lab intermediate" || bad "served cert issuer: '${issuer}'"
+if curl -fsS -m 5 -o /dev/null "${RESOLVE[@]}" "https://${ARGOCD_HOST}/" 2>/dev/null; then
+  ok "this machine trusts the lab root (system store)"
+else
+  bad "this machine doesn't trust the lab root yet: make trust-root"
+fi
 if getent hosts "${ARGOCD_HOST}" | grep -q "^${GATEWAY_IP} "; then
   ok "${ARGOCD_HOST} resolves to ${GATEWAY_IP} (AdGuard rewrite)"
 else

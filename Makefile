@@ -83,11 +83,22 @@ route: ## Route the lab CIDR via the OPNsense WAN on this workstation (sudo)
 unroute: ## Remove the lab route from this workstation (sudo)
 	-sudo ip route del $(LAB_CIDR)
 
+.PHONY: pki secrets trust-root
+pki: tools ## ONE-TIME: lab root/intermediate CA + age key (refuses to overwrite; back up .cache/ca + .cache/age)
+	scripts/pki-init.sh
+
+secrets: ## Apply the SOPS-encrypted bootstrap secrets to the cluster
+	scripts/apply-bootstrap-secrets.sh
+
+trust-root: ## sudo: trust the lab root CA on this workstation (system store, p11-kit)
+	sudo trust anchor --store k8s/platform/step-ca/config/root_ca.crt
+	@trust list --filter=ca-anchors | grep -B2 -A2 "homelab-cloud Root CA"
+
 .PHONY: verify verify-host
 verify-host: ## Phase 1 checks (needs the test VM: TF_VAR_enable_test_vm=true make host)
 	scripts/verify-host.sh
 
-verify: ## Phase 2 checks: nodes, Cilium, Argo CD, Gateway
+verify: ## Cluster checks: nodes, Cilium, Argo CD, Gateway + TLS, storage
 	scripts/verify-cluster.sh
 
 .PHONY: test

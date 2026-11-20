@@ -6,7 +6,7 @@ global:
 
 configs:
   params:
-    # TLS terminates at the Gateway (cert-manager + step-ca in Phase 3); plain HTTP inside the cluster
+    # TLS terminates at the Gateway (step-ca wildcard, ADR 0007); plain HTTP inside the cluster
     server.insecure: true
 
 # Sized for 1 GiB nodes: no Dex (SSO comes with Keycloak in Phase 3), no notifications.

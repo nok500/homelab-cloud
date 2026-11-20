@@ -1,0 +1,31 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: step-issuer
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  sources:
+    - repoURL: https://smallstep.github.io/helm-charts
+      chart: step-issuer
+      targetRevision: 1.11.0
+      helm:
+        releaseName: step-issuer
+        valueFiles:
+          - $values/k8s/platform/step-issuer/values.yaml
+    - repoURL: git@github.com:nok500/homelab-cloud.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: step-issuer
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

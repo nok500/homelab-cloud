@@ -1,0 +1,13 @@
+---
+# cert-manager (ACM's issuing side). Certificates come from step-ca through step-issuer (ADR 0007).
+crds:
+  enabled: true
+  keep: true   # deleting the Application must never delete every Certificate in the cluster
+resources:
+  requests: {cpu: 10m, memory: 64Mi}
+webhook:
+  resources:
+    requests: {cpu: 10m, memory: 32Mi}
+cainjector:
+  resources:
+    requests: {cpu: 10m, memory: 64Mi}

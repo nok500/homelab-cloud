@@ -12,11 +12,23 @@ spec:
     annotations:
       lbipam.cilium.io/ips: 10.10.1.200
   listeners:
-    # HTTP only until Phase 3 (cert-manager + step-ca adds the HTTPS listener)
+    # Port 80 only redirects to HTTPS (http-to-https.yaml); routes attach to `https`.
     - name: http
       protocol: HTTP
       port: 80
       hostname: "*.lab.macpro"
+      allowedRoutes:
+        namespaces:
+          from: Same
+    # TLS terminates here with the step-ca wildcard (k8s/platform/certificates, ADR 0007).
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: "*.lab.macpro"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: lab-wildcard-tls
       allowedRoutes:
         namespaces:
           from: All

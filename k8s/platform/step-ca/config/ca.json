@@ -1,0 +1,53 @@
+{
+  "root": "/home/step/certs/root_ca.crt",
+  "federateRoots": [],
+  "crt": "/home/step/certs/intermediate_ca.crt",
+  "key": "/home/step/secrets/intermediate_ca_key",
+  "address": "0.0.0.0:9000",
+  "dnsNames": [
+    "step-ca.step-ca.svc.cluster.local",
+    "step-ca.step-ca.svc",
+    "127.0.0.1"
+  ],
+  "logger": {
+    "format": "json"
+  },
+  "db": {
+    "type": "badgerv2",
+    "dataSource": "/home/step/db"
+  },
+  "authority": {
+    "claims": {
+      "minTLSCertDuration": "5m",
+      "maxTLSCertDuration": "2160h",
+      "defaultTLSCertDuration": "2160h",
+      "disableRenewal": false
+    },
+    "provisioners": [
+      {
+        "type": "JWK",
+        "name": "step-issuer",
+        "key": {
+          "use": "sig",
+          "kty": "EC",
+          "kid": "vt5Eey2ZaunMhJc5CM07_0UQdJa0j5mQWYDxEB0KyRM",
+          "crv": "P-256",
+          "alg": "ES256",
+          "x": "iCje5NZNWZz_GTHe98DZyrO9VlcBUETMU-9YGkMugUM",
+          "y": "vb4TUZnsTd-7Iub4BbX5aVeqh1HxU-RqjEmResyWF4U"
+        },
+        "encryptedKey": "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJjdHkiOiJqd2sranNvbiIsImVuYyI6IkEyNTZHQ00iLCJwMmMiOjYwMDAwMCwicDJzIjoiVGZURTZyYWl1WjdjYU9PZU9EYmNLUSJ9.M6NHhxvH9EcvtXN5DIEnlx4ROEoGsmMl7BxyhOnf7m6ropGlciaY_g.SCchwnn8xcWVT6cO.ZFRJNh9Fndn8hSzqhcgCNPk1BHTuZNJHzX-y9Dcl10MbBP0bFRzc2yc3LTW_fv2UvL6JTS9bQ1MaGZYc4KAr-Cf1hKDS3CxVi9lMz8zE_AxD6vYGpNlWNKBLVbTOKfVlRXbMchrusqcfOU8GSGDYpbELjG88KMdDzmlRChj4H1ArORzFHQT2bgw30nWk14IMrhcwrLESyCk14TB4QXrquVer4v-QCjbHDJPmlbWdBAx1gfkiP0aB0wXiMaBhr2_Ntb0hK-GWhPJf7lTkoarp6kyCfai3RdJDc-iXy3_2CHqDokr1B-o7ZnWjbUwAXxtZoD7_tDkIxLY23VV33g4.-7X9Lwz2JpFBsqx0ceKXxg"
+      }
+    ]
+  },
+  "tls": {
+    "cipherSuites": [
+      "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305",
+      "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+      "TLS_AES_128_GCM_SHA256"
+    ],
+    "minVersion": 1.2,
+    "maxVersion": 1.3,
+    "renegotiation": false
+  }
+}

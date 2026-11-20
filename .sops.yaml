@@ -1,0 +1,7 @@
+---
+# SOPS: *.enc.yaml files are encrypted to the lab's age key (.cache/age/key.txt, never committed).
+# Only Secret payloads are encrypted, so diffs still show which secret changed.
+creation_rules:
+  - path_regex: \.enc\.yaml$
+    encrypted_regex: ^(data|stringData)$
+    age: age17fyy60lfzqer059rwjjae9f2lxe4lmrz4ns6jjccxrfkmjlcpv4s90lutm

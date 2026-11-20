@@ -7,8 +7,9 @@ modules tested against the AWS Emulator.
 > Status: **Phase 3 in progress** (managed-service equivalents). Done: Phase 1 VPC + OPNsense
 > ([ADR 0003](docs/decisions/0003-vpc-networking.md)), Phase 2 "EKS": Talos v1.14.6 + Cilium 1.20.5 + Argo CD 3.6.2
 > ([ADR 0005](docs/decisions/0005-eks-on-talos.md)). Phase 3 so far: persistent volumes via local-path-provisioner
-> on dedicated worker disks ([ADR 0006](docs/decisions/0006-storage-and-state.md)).
-> Argo CD UI: http://argocd.lab.macpro/ ([access runbook](docs/runbooks/cluster-access.md)).
+> on dedicated worker disks ([ADR 0006](docs/decisions/0006-storage-and-state.md)); TLS everywhere from a private,
+> name-constrained CA: step-ca + cert-manager ([ADR 0007](docs/decisions/0007-private-pki.md)).
+> Argo CD UI: https://argocd.lab.macpro/ ([access runbook](docs/runbooks/cluster-access.md)).
 
 ## Architecture
 
@@ -26,7 +27,8 @@ flowchart LR
       pubnote[reserved]
     end
     subgraph priv["private subnet 10.10.1.0/24"]
-      gw[Cilium Gateway 10.10.1.200<br/>*.lab.macpro]
+      gw[Cilium Gateway 10.10.1.200<br/>HTTPS *.lab.macpro]
+      pki[step-ca + cert-manager<br/>wildcard cert]
       cp[talos-cp-1 .20]
       w1[talos-worker-1 .21]
       w2[talos-worker-2 .22]
@@ -43,6 +45,7 @@ flowchart LR
   opn --- pub & priv & data
   opn -. "DNS forward" .-> dns
   gw --> argo
+  pki -. "TLS cert" .-> gw
   cp & w1 & w2 --- gw
   argo -- "deploy key (read-only)" --> gh
   dns -. "rewrite *.lab.macpro" .-> gw

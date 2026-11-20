@@ -1,0 +1,25 @@
+---
+# step-ca (smallstep step-certificates chart) running the lab's existing intermediate CA (ADR 0007).
+# `existingSecrets` mode (the chart can't mix it with `inject`), so the chart only runs the CA:
+#   - ConfigMaps step-ca-config (ca.json) + step-ca-certs: ./config, rendered by scripts/pki-render.py,
+#     deployed as the step-ca Application's second source
+#   - Secrets step-ca-secrets (intermediate key) + step-ca-ca-password: secrets.enc.yaml (SOPS), applied by
+#     scripts/apply-bootstrap-secrets.sh; they move to OpenBao + External Secrets in milestone 3
+fullnameOverride: step-ca
+existingSecrets:
+  enabled: true
+  ca: true
+bootstrap:
+  enabled: false
+  configmaps: false
+  secrets: false
+ca:
+  db:
+    enabled: true
+    persistent: true
+    size: 1Gi
+  ssh:
+    enabled: false
+resources:
+  requests: {cpu: 20m, memory: 64Mi}
+  limits: {memory: 256Mi}

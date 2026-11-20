@@ -9,7 +9,8 @@ export KUBECONFIG=$PWD/.cache/cluster/kubeconfig TALOSCONFIG=$PWD/.cache/cluster
 export PATH=$PWD/.tools/bin:$PATH        # pinned talosctl
 ```
 
-Prerequisites on the workstation: the lab route (`make route`, once per boot) and DNS for `*.lab.macpro`
+Prerequisites on the workstation: the lab route (`make route`, once per boot), the lab root CA trusted
+(`make trust-root`, once) and DNS for `*.lab.macpro`
 (AdGuard rewrite to the Gateway, see `docs/bootstrap.md`). If nothing answers, see
 [opnsense.md § Connectivity loss](opnsense.md#connectivity-loss-find-the-hop-then-recover).
 
@@ -17,7 +18,7 @@ Prerequisites on the workstation: the lab route (`make route`, once per boot) an
 
 | | |
 |---|---|
-| URL | http://argocd.lab.macpro/ (Cilium Gateway on `10.10.1.200`; HTTPS from Phase 3) |
+| URL | **https://argocd.lab.macpro/** (Cilium Gateway on `10.10.1.200`; `http://` redirects; cert from the lab CA, see [pki.md](pki.md)) |
 | User | `admin` |
 | Password | `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' \| base64 -d; echo` |
 
@@ -27,7 +28,7 @@ Local admin only for now; SSO via Keycloak (OIDC) comes in Phase 3.
 Optional hardening, per the Argo CD docs: change the password, then delete the bootstrap secret:
 
 ```sh
-argocd login argocd.lab.macpro --plaintext --username admin --grpc-web
+argocd login argocd.lab.macpro --username admin --grpc-web
 argocd account update-password
 kubectl -n argocd delete secret argocd-initial-admin-secret
 ```

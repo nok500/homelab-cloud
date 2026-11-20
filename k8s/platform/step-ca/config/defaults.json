@@ -1,0 +1,5 @@
+{
+  "ca-url": "https://step-ca.step-ca.svc.cluster.local",
+  "ca-config": "/home/step/config/ca.json",
+  "root": "/home/step/certs/root_ca.crt"
+}

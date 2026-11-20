@@ -1,0 +1,22 @@
+---
+# The Gateway's certificate: one wildcard for every *.lab.macpro route (like one ACM cert on an ALB).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: lab-wildcard
+  namespace: gateway
+spec:
+  secretName: lab-wildcard-tls
+  dnsNames:
+    - "*.lab.macpro"
+    - lab.macpro
+  duration: 2160h    # 90 d (step-ca provisioner max)
+  renewBefore: 720h  # renew 30 d before expiry
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    group: certmanager.step.sm
+    kind: StepClusterIssuer
+    name: step-ca
