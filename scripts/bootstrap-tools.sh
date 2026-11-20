@@ -7,6 +7,11 @@ TFLINT_VERSION="0.66.0"
 GITLEAKS_VERSION="8.30.1"
 PRE_COMMIT_VERSION="4.7.0"
 TALOSCTL_VERSION="1.14.6"
+SOPS_VERSION="3.13.3"
+AGE_VERSION="1.3.2"
+# age publishes Sigsum proofs, not a checksum file: hash pinned on first download (2026-11-20)
+AGE_SHA256="cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10"
+STEP_VERSION="0.31.0"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TOOLS="${ROOT}/.tools"
@@ -49,6 +54,37 @@ if [[ "$("${BIN}/talosctl" version --client --short 2>/dev/null)" != *"v${TALOSC
   curl -fsSL -o "${TMP}/talos.sums" "${base}/sha256sum.txt"
   verify talos.sums talosctl-linux-amd64
   install -m 0755 "${TMP}/talosctl-linux-amd64" "${BIN}/talosctl"
+fi
+
+if [[ "$("${BIN}/sops" --version --disable-version-check 2>/dev/null)" != *"${SOPS_VERSION}"* ]]; then
+  echo ">> sops ${SOPS_VERSION}"
+  asset="sops-v${SOPS_VERSION}.linux.amd64"
+  base="https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}"
+  curl -fsSL -o "${TMP}/${asset}" "${base}/${asset}"
+  curl -fsSL -o "${TMP}/sops.sums" "${base}/sops-v${SOPS_VERSION}.checksums.txt"
+  verify sops.sums "${asset}"
+  install -m 0755 "${TMP}/${asset}" "${BIN}/sops"
+fi
+
+if [[ "$("${BIN}/age" --version 2>/dev/null)" != "v${AGE_VERSION}" ]]; then
+  echo ">> age ${AGE_VERSION}"
+  asset="age-v${AGE_VERSION}-linux-amd64.tar.gz"
+  curl -fsSL -o "${TMP}/${asset}" "https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/${asset}"
+  echo "${AGE_SHA256}  ${asset}" > "${TMP}/age.sums"
+  verify age.sums "${asset}"
+  tar -xzf "${TMP}/${asset}" -C "${TMP}" age/age age/age-keygen
+  install -m 0755 "${TMP}/age/age" "${TMP}/age/age-keygen" "${BIN}/"
+fi
+
+if [[ "$("${BIN}/step" version 2>/dev/null | head -1)" != *"${STEP_VERSION}"* ]]; then
+  echo ">> step ${STEP_VERSION}"
+  asset="step_linux_${STEP_VERSION}_amd64.tar.gz"
+  base="https://github.com/smallstep/cli/releases/download/v${STEP_VERSION}"
+  curl -fsSL -o "${TMP}/${asset}" "${base}/${asset}"
+  curl -fsSL -o "${TMP}/step.sums" "${base}/checksums.txt"
+  verify step.sums "${asset}"
+  tar -xzf "${TMP}/${asset}" -C "${TMP}" "step_${STEP_VERSION}/bin/step"
+  install -m 0755 "${TMP}/step_${STEP_VERSION}/bin/step" "${BIN}/step"
 fi
 
 if [[ "$("${TOOLS}/venv/bin/pre-commit" --version 2>/dev/null)" != *"${PRE_COMMIT_VERSION}"* ]]; then
