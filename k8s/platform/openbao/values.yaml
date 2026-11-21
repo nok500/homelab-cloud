@@ -124,4 +124,15 @@ server:
             }
           }
         }
+        # CNPG backups to Garage on the host (bucket cnpg-backups, ADR 0010/0011)
+        request "databases" {
+          operation = "update"
+          path      = "secret/data/databases/garage-s3"
+          data = {
+            data = {
+              ACCESS_KEY_ID     = { eval_type = "string", eval_source = "file", path = "/openbao/seed/databases-s3-access-key-id" }
+              ACCESS_SECRET_KEY = { eval_type = "string", eval_source = "file", path = "/openbao/seed/databases-s3-secret-access-key" }
+            }
+          }
+        }
       }

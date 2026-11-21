@@ -11,7 +11,8 @@ modules tested against the AWS Emulator.
 > name-constrained CA: step-ca + cert-manager ([ADR 0007](docs/decisions/0007-private-pki.md)); secrets from OpenBao via
 > External Secrets, self-initialized and seeded on every rebuild ([ADR 0008](docs/decisions/0008-secrets-openbao.md)).
 > Terraform state in Garage S3 on the Mac Pro host, outside the lab, over TLS from the lab CA
-> ([ADR 0010](docs/decisions/0010-garage-host-s3.md)).
+> ([ADR 0010](docs/decisions/0010-garage-host-s3.md)); PostgreSQL via CloudNativePG with continuous backups to Garage
+> and a tested point-in-time restore ([ADR 0011](docs/decisions/0011-databases-cnpg.md)).
 > Argo CD UI: https://argocd.lab.macpro/ ([access runbook](docs/runbooks/cluster-access.md)).
 
 ## Architecture
@@ -38,9 +39,10 @@ flowchart LR
       w1[talos-worker-1 .21]
       w2[talos-worker-2 .22]
       argo[Argo CD<br/>app-of-apps]
+      db[(CloudNativePG<br/>databases ns)]
     end
     subgraph data["data subnet 10.10.2.0/24"]
-      db[(CNPG)]
+      datanote[reserved]
     end
   end
   gh[(GitHub repo)]
@@ -58,7 +60,9 @@ flowchart LR
   argo -- "deploy key (read-only)" --> gh
   dns -. "rewrite *.lab.macpro" .-> gw
   style pubnote stroke-dasharray: 5 5
-  style db stroke-dasharray: 5 5
+  style datanote stroke-dasharray: 5 5
+  db -- "base backups + WAL (S3, TLS)" --> garage
+  bao -. "S3 key" .-> db
 ```
 
 | AWS | Here |
@@ -82,6 +86,7 @@ make garage   # Garage S3 on the host (Terraform state, backups): deploy/converg
 make up       # build the lab: VPC + OPNsense, Talos cluster, Cilium, Argo CD (~15 min), shown in the TUI
 make tui      # lab monitor: status, host CPU/RAM/temp, VMs, pods, nodes, Talos dashboard
 make route    # sudo: route 10.10.0.0/16 via OPNsense on this workstation
+make db-restore-test  # point-in-time restore of the demo database from Garage, checked row by row
 make verify   # cluster acceptance checks (verify-host: Phase 1, needs the test VM)
 make shutdown # safe stop of all VMs (make poweroff: also the Mac Pro; make start: back up)
 make destroy  # tear it down

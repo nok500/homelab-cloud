@@ -3,6 +3,7 @@
 #   unseal.key       32 random bytes, static auto-unseal key   (generated once, kept across re-runs)
 #   admin-password   OpenBao `admin` userpass login             (generated once, kept across re-runs)
 #   step-ca-*        seed values copied in by self-initialization (from .cache/ca)
+#   databases-s3-*   Garage key for CNPG backups (from host/garage/secrets.enc.yaml)
 # OpenBao reads these files only on first start (self-init), then everything comes from OpenBao via
 # External Secrets. Re-run after adding a seed value, then commit + push.
 set -euo pipefail
@@ -23,9 +24,15 @@ if [[ -f "${OUT}" ]]; then
   sops --decrypt "${OUT}" > "${TMP}/old.yaml"
 fi
 
-python3 -I - "${TMP}/old.yaml" "${CA}" > "${TMP}/seed.yaml" <<'EOF'
+# the CNPG backup key for Garage (host/garage/secrets.enc.yaml, written by make garage; ADR 0010)
+GARAGE_SECRETS="${ROOT}/host/garage/secrets.enc.yaml"
+[[ -f "${GARAGE_SECRETS}" ]] || { echo "missing ${GARAGE_SECRETS#"${ROOT}"/}: run make garage first" >&2; exit 1; }
+sops --decrypt "${GARAGE_SECRETS}" > "${TMP}/garage.yaml"
+
+python3 -I - "${TMP}/old.yaml" "${CA}" "${TMP}/garage.yaml" > "${TMP}/seed.yaml" <<'EOF'
 import base64, os, secrets, sys, yaml
-old_path, ca = sys.argv[1:]
+old_path, ca, garage_path = sys.argv[1:]
+garage = yaml.safe_load(open(garage_path))["stringData"]
 old = {}
 if os.path.exists(old_path):
     old = (yaml.safe_load(open(old_path)) or {}).get("data", {})
@@ -37,6 +44,8 @@ data = {
     "step-ca-intermediate-key": b64(rd("intermediate_ca_key")),
     "step-ca-ca-password": b64(rd("intermediate.pass").strip()),
     "step-ca-provisioner-password": b64(rd("provisioner.pass").strip()),
+    "databases-s3-access-key-id": b64(garage["cnpg-backups_key_id"].encode()),
+    "databases-s3-secret-access-key": b64(garage["cnpg-backups_secret_key"].encode()),
 }
 print("---")
 print(yaml.dump({"apiVersion": "v1", "kind": "Secret",

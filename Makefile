@@ -96,6 +96,11 @@ down destroy: init ## Tear the lab down completely (cluster state first, then th
 	$(TF_TALOS) destroy -input=false $(TF_APPROVE)
 	$(TF_HOST) destroy -input=false $(TF_APPROVE)
 	rm -f .cache/cluster/kubeconfig .cache/cluster/talosconfig
+	scripts/garage-wipe.sh cnpg-backups lab/   # fresh databases next time: empty WAL archive (ADR 0011)
+
+.PHONY: db-restore-test
+db-restore-test: ## Point-in-time restore of pg-demo from Garage into a new cluster, checked row by row
+	scripts/db-restore-test.sh
 
 .PHONY: shutdown poweroff start
 shutdown: ## Safe stop of all lab VMs: drain + stop workers, control plane, then OPNsense (host stays up)

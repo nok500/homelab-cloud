@@ -1,0 +1,24 @@
+---
+# Garage key for bucket cnpg-backups, from OpenBao secret/databases/garage-s3 (seeded by self-init, ADR 0008/0011).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: garage-s3
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: openbao
+  target:
+    name: garage-s3
+    template:
+      metadata:
+        labels:
+          cnpg.io/reload: "true"   # instances pick up a rotated key without a restart
+      data:
+        ACCESS_KEY_ID: "{{ .ACCESS_KEY_ID }}"
+        ACCESS_SECRET_KEY: "{{ .ACCESS_SECRET_KEY }}"
+        REGION: garage           # Garage's s3_region; SigV4 signatures must use it
+  dataFrom:
+    - extract:
+        key: databases/garage-s3

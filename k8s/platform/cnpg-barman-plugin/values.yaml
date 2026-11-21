@@ -1,0 +1,7 @@
+---
+# Barman Cloud plugin (CNPG-I): base backups + WAL archiving to object storage (ADR 0011). Replaces the in-tree
+# barmanObjectStore, whose removal is announced for CNPG 1.32. Its gRPC TLS uses cert-manager (self-signed issuer
+# from the chart); the per-instance sidecar's resources are set on each ObjectStore.
+resources:
+  requests: {cpu: 20m, memory: 64Mi}
+  limits: {memory: 128Mi}

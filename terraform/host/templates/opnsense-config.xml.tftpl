@@ -120,7 +120,12 @@
     <interface>${join(",", [for s in subnets : s.ifkey])}</interface>
   </ntpd>
   <OPNsense>
-    <!-- Unbound: lab.macpro (DHCP names) from dnsmasq, everything else forwarded upstream (AdGuard).
+    <!-- Unbound (ADR 0004): the VPC sees the same lab.macpro names as the LAN, so lab.macpro goes to AdGuard
+         (*.lab.macpro -> the Gateway, s3.lab.macpro -> Garage on the host). The fixed-address hosts keep their
+         own names via a more specific override each, answered by dnsmasq (DHCP static maps). dnsmasq alone
+         would answer NXDOMAIN for every other lab.macpro name (it runs with local=/lab.macpro/).
+         Without an upstream, lab.macpro stays with dnsmasq. Unbound's rebind protection doesn't strip the
+         private answers: lab.macpro is a private-domain.
          Written in the legacy <domains> (Domain Overrides) format on purpose: model migration M1_0_11
          converts these into <dots> entries of type "forward". Entries written directly as <dots> come
          out as type "dot" (DNS-over-TLS) after the migrations run, which breaks plain-DNS forwarding.
@@ -130,12 +135,29 @@
         <enabled>1</enabled>
       </general>
       <domains>
+%{ if upstream_dns != null ~}
+        <domain>
+          <enabled>1</enabled>
+          <domain>${domain}</domain>
+          <server>${upstream_dns}@53</server>
+          <description>lab names as on the LAN (AdGuard rewrites)</description>
+        </domain>
+%{ for h in static_hosts ~}
+        <domain>
+          <enabled>1</enabled>
+          <domain>${h.name}.${domain}</domain>
+          <server>127.0.0.1@53053</server>
+          <description>${h.descr} (dnsmasq static map)</description>
+        </domain>
+%{ endfor ~}
+%{ else ~}
         <domain>
           <enabled>1</enabled>
           <domain>${domain}</domain>
           <server>127.0.0.1@53053</server>
           <description>DHCP host names (dnsmasq)</description>
         </domain>
+%{ endif ~}
 %{ if upstream_dns != null ~}
         <domain>
           <enabled>1</enabled>

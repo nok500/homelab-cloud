@@ -1,0 +1,35 @@
+---
+# CloudNativePG Barman Cloud plugin: chart 0.8.1 = plugin v0.15.1 (needs CNPG >= 1.30 and cert-manager)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cnpg-barman-plugin
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: default
+  sources:
+    - repoURL: https://cloudnative-pg.github.io/charts
+      chart: plugin-barman-cloud
+      targetRevision: 0.8.1
+      helm:
+        releaseName: cnpg-barman-plugin
+        valueFiles:
+          - $values/k8s/platform/cnpg-barman-plugin/values.yaml
+    - repoURL: git@github.com:nok500/homelab-cloud.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cnpg-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true   # the CNPG CRDs are too large for client-side apply's annotation
+    retry:
+      limit: 10
+      backoff: {duration: 10s, factor: 2, maxDuration: 2m}

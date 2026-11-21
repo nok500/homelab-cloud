@@ -11,6 +11,8 @@
 #      and the OpenBao UI answers on https://bao.lab.macpro.
 #   8. Terraform state: Garage on the Mac Pro host is up, s3.lab.macpro resolves to it, its TLS verifies and has
 #      more than 30 days left, and both stacks' state objects are in the tfstate bucket.
+#   9. Databases: CNPG operator + Barman Cloud plugin up, pg-demo healthy with 2 instances, WAL archiving to
+#      Garage works and a base backup completed. The full restore test is make db-restore-test.
 # Waits (bounded) for things that converge after bootstrap, so it can run straight after `make up`.
 set -uo pipefail
 
@@ -60,6 +62,20 @@ if retry 6 15 pod_dns; then
   ok "pod resolves cluster and external names"
 else
   bad "pod DNS: ${dns_out//$'\n'/ }"
+fi
+# The VPC resolves lab.macpro like the LAN (ADR 0004): Gateway names and Garage, plus the nodes' own names
+LAB_DNS_OVERRIDES='{"spec":{"securityContext":{"runAsNonRoot":true,"runAsUser":65534,"seccompProfile":{"type":"RuntimeDefault"}},"containers":[{"name":"dns","image":"busybox:1.37.0","command":["sh","-c","for n in argocd.lab.macpro s3.lab.macpro talos-cp-1.lab.macpro; do echo \"$n=$(nslookup $n 2>/dev/null | awk \"/^Address: /{print \\$2}\" | head -1)\"; done"],"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}}}]}}'
+lab_dns() {
+  lab_out="$(kubectl run "verify-labdns-$$" --rm -i --restart=Never --quiet --image=busybox:1.37.0 \
+    --overrides="${LAB_DNS_OVERRIDES}" 2>&1)"
+  grep -qx "argocd.lab.macpro=${GATEWAY_IP}" <<<"${lab_out}" \
+    && grep -qx "s3.lab.macpro=${LAB_HOST:-192.168.8.207}" <<<"${lab_out}" \
+    && grep -qx "talos-cp-1.lab.macpro=10.10.1.20" <<<"${lab_out}"
+}
+if retry 4 15 lab_dns; then
+  ok "pod resolves lab.macpro like the LAN (Gateway, Garage, node names)"
+else
+  bad "pod lab.macpro DNS: ${lab_out//$'\n'/ }"
 fi
 
 echo "3. Cilium"
@@ -181,6 +197,16 @@ state_objects() {
     | grep -o '<Key>[^<]*</Key>' | grep -c -e host/terraform.tfstate -e talos/terraform.tfstate | grep -qx 2
 }
 check "tfstate bucket holds host + talos state (TLS verified against the lab root)" state_objects
+
+echo "9. Databases (CloudNativePG, backups to Garage)"
+check "CNPG operator + Barman Cloud plugin ready" sh -c \
+  "kubectl -n cnpg-system rollout status deploy/cnpg-cloudnative-pg --timeout=120s && kubectl -n cnpg-system rollout status deploy/cnpg-barman-plugin-plugin-barman-cloud --timeout=120s"
+cluster_healthy() { kubectl -n databases get cluster pg-demo -o jsonpath='{.status.phase} {.status.readyInstances}' | grep -qx 'Cluster in healthy state 2'; }
+check "pg-demo healthy, 2 instances (primary + streaming replica)" retry 30 10 cluster_healthy
+archiving() { kubectl -n databases get cluster pg-demo -o jsonpath='{.status.conditions[?(@.type=="ContinuousArchiving")].status}' | grep -qx True; }
+check "pg-demo WAL archiving to Garage works (ContinuousArchiving)" retry 30 10 archiving
+base_backup() { kubectl -n databases get backups -o jsonpath='{range .items[*]}{.spec.cluster.name} {.status.phase}{"\n"}{end}' | grep -qx 'pg-demo completed'; }
+check "pg-demo has a completed base backup in Garage" retry 30 10 base_backup
 
 echo
 printf '%d passed, %d failed\n' "${pass}" "${fail}"

@@ -223,8 +223,19 @@ def st_secrets(_):
     return ("ok" if ok else "warn"), (f"{synced}/{len(es)}" if es else "")
 
 
+def st_databases(_):
+    c = kget("-n", "databases", "clusters.postgresql.cnpg.io")
+    if c is None or not c["items"]:
+        return "none", "-"
+    healthy = sum(i.get("status", {}).get("phase") == "Cluster in healthy state" for i in c["items"])
+    archiving = all(cond(i, "ContinuousArchiving") == "True" for i in c["items"])
+    total = len(c["items"])
+    return ("ok" if healthy == total and archiving else "warn"), f"{healthy}/{total}" + ("" if archiving else " no WAL archive")
+
+
 CHECKS = [("talos", st_talos), ("kubernetes", st_kube), ("cilium", st_cilium), ("argocd", st_argocd),
-          ("gateway", st_gateway), ("storage", st_storage), ("secrets", st_secrets)]
+          ("gateway", st_gateway), ("storage", st_storage), ("secrets", st_secrets),
+          ("databases", st_databases)]
 
 
 def panel_status():

@@ -47,3 +47,6 @@ keys.txt
 
 # downloaded/converted images (scripts/fetch-images.sh)
 .cache/
+
+# Python bytecode
+__pycache__/

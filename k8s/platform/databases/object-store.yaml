@@ -1,0 +1,35 @@
+---
+# Where every cluster in this namespace backs up: s3://cnpg-backups/lab/<cluster>/ on Garage (host, outside the
+# lab). make destroy empties s3://cnpg-backups/lab/ (fresh databases per rebuild, ADR 0011).
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: garage
+spec:
+  retentionPolicy: 7d
+  configuration:
+    destinationPath: s3://cnpg-backups/lab/
+    endpointURL: https://s3.lab.macpro:3900
+    endpointCA:
+      name: garage-ca
+      key: ca.crt
+    s3Credentials:
+      accessKeyId:
+        name: garage-s3
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: garage-s3
+        key: ACCESS_SECRET_KEY
+      region:
+        name: garage-s3
+        key: REGION
+    wal:
+      compression: zstd
+      maxParallel: 2
+    data:
+      compression: gzip
+      jobs: 2
+  instanceSidecarConfiguration:
+    resources:
+      requests: {cpu: 20m, memory: 64Mi}
+      limits: {memory: 256Mi}

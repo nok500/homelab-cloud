@@ -1,0 +1,8 @@
+---
+# CloudNativePG operator (the lab's "RDS" control plane, ADR 0011). Watches every namespace; database clusters
+# live in `databases` (k8s/platform/databases).
+monitoring:
+  podMonitorEnabled: false   # kube-prometheus-stack arrives in Phase 4
+resources:
+  requests: {cpu: 50m, memory: 128Mi}
+  limits: {memory: 256Mi}

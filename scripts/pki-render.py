@@ -16,6 +16,7 @@ import yaml
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CA = ROOT / ".cache" / "ca"
 OUT = ROOT / "k8s" / "platform" / "step-ca" / "config"
+DB_CA = ROOT / "k8s" / "platform" / "databases" / "lab-root-ca.crt"
 ISSUER = ROOT / "k8s" / "platform" / "certificates" / "step-cluster-issuer.yaml"
 NS = "step-ca"
 SVC = f"step-ca.{NS}.svc.cluster.local"
@@ -93,6 +94,10 @@ def main() -> int:
     (OUT / "defaults.json").write_text(json.dumps(defaults, indent=2) + "\n")
     (OUT / "root_ca.crt").write_text(rd("root_ca.crt"))
     (OUT / "intermediate_ca.crt").write_text(rd("intermediate_ca.crt"))
+    # a copy for consumers whose kustomization can't reach step-ca/config (load restrictor): CNPG's endpointCA
+    # for Garage (s3.lab.macpro, signed by the lab CA; ADR 0010)
+    DB_CA.parent.mkdir(parents=True, exist_ok=True)
+    DB_CA.write_text(rd("root_ca.crt"))
     (OUT / "kustomization.yaml").write_text(
         "---\n" + GENERATED + dump(
             {

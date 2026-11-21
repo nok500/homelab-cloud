@@ -1,0 +1,16 @@
+---
+# The lab's "RDS" (ADR 0011): PostgreSQL clusters run by CloudNativePG, backed up to Garage on the host.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: databases
+resources:
+  - garage-s3.yaml
+  - object-store.yaml
+  - pg-demo.yaml
+secretGenerator:
+  # the lab root CA (written by scripts/pki-render.py): s3.lab.macpro's certificate chains to it
+  - name: garage-ca
+    files:
+      - ca.crt=lab-root-ca.crt
+    options:
+      disableNameSuffixHash: true

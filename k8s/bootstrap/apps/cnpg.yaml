@@ -1,0 +1,35 @@
+---
+# CloudNativePG operator: chart 0.29.2 = CNPG 1.30.2 (4 days old when pinned: Go vulnerability fixes and an operand image with CVE fixes)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cnpg
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  sources:
+    - repoURL: https://cloudnative-pg.github.io/charts
+      chart: cloudnative-pg
+      targetRevision: 0.29.2
+      helm:
+        releaseName: cnpg
+        valueFiles:
+          - $values/k8s/platform/cnpg/values.yaml
+    - repoURL: git@github.com:nok500/homelab-cloud.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cnpg-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true   # the CNPG CRDs are too large for client-side apply's annotation
+    retry:
+      limit: 10
+      backoff: {duration: 10s, factor: 2, maxDuration: 2m}

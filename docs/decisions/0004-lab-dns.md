@@ -1,6 +1,6 @@
 # 0004: Lab DNS: `lab.macpro`, OPNsense Unbound, AdGuard wildcard rewrite
 
-- Status: accepted (implemented in Phase 2)
+- Status: accepted (implemented in Phase 2; amended 2026-11-21: the VPC resolves `lab.macpro` via AdGuard)
 - Date: 2026-11-19
 
 ## Context
@@ -40,3 +40,18 @@ Checked 2026-11-19 from OPNsense: AdGuard answers (`drill @192.168.8.1`), filter
 - LAN devices resolve `*.lab.macpro`, but can only connect if they have a route to `10.10.0.0/16`. Today that's only
   the admin workstation (`make route`); a static route on the home router is a separate decision.
 - cert-manager and step-ca issue the `*.lab.macpro` wildcard ([ADR 0007](0007-private-pki.md)).
+
+## Amendment (2026-11-21): the VPC resolves `lab.macpro` like the LAN
+
+Found while wiring CNPG backups (Phase 3 milestone 5): inside the VPC, **no** `*.lab.macpro` name resolved except
+OPNsense's own. Unbound forwarded the whole zone to OPNsense's dnsmasq, which runs with `local=/lab.macpro/` and
+knows only the DHCP host names, so `s3.lab.macpro` and `argocd.lab.macpro` came back NXDOMAIN to every pod.
+
+- **Now:** Unbound forwards `lab.macpro` to AdGuard, the same answers the LAN gets (`*.lab.macpro` → the Gateway,
+  `s3.lab.macpro` → Garage on the host). Each fixed-address host (`talos-cp-1`, the workers) keeps a more specific
+  override to dnsmasq, so node names still resolve to the nodes. Dynamic DHCP leases (10.10.x.100–199) lose
+  their names, which nothing uses.
+- Unbound's rebind protection doesn't strip the private answers: `lab.macpro` is already a `private-domain`.
+  Tested live with `unbound-control forward_add` before changing the template (and reverted).
+- `make verify` section 2 checks it from a pod: `argocd.lab.macpro`, `s3.lab.macpro` and `talos-cp-1.lab.macpro`.
+- Needed by: CNPG → `s3.lab.macpro` (milestone 5), Argo CD → `keycloak.lab.macpro` for OIDC (milestone 6).
