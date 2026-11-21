@@ -35,5 +35,16 @@ until kubectl wait --for=condition=Ready nodes --all --timeout=10s >/dev/null 2>
   ((SECONDS > deadline)) && { echo "  nodes not Ready after 10 min" >&2; kubectl get nodes >&2; exit 1; }; sleep 5
 done
 kubectl get nodes
+echo ">> databases: wake from hibernation (make shutdown hibernates them)"
+mapfile -t DBS < <(kubectl get clusters.postgresql.cnpg.io -A \
+  -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name} {.metadata.annotations.cnpg\.io/hibernation}{"\n"}{end}' 2>/dev/null)
+for line in "${DBS[@]}"; do
+  read -r c hib <<<"${line}"
+  if [[ "${hib}" == on ]]; then
+    kubectl -n "${c%/*}" annotate cluster "${c#*/}" cnpg.io/hibernation- >/dev/null && echo "  ${c}: waking up"
+  else
+    echo "  ${c}: not hibernated"
+  fi
+done
 echo
 echo "Lab is up after $((SECONDS / 60)) min. Apps settle within a few minutes; check with: make verify"

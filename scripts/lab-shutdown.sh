@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Safe shutdown of the lab, in dependency order (docs/runbooks/power.md):
+#   0. databases:      CNPG hibernation (clean PostgreSQL stop; its PDB would block the drain otherwise)
 #   1. workers:        talosctl shutdown (cordon + drain, then a clean OS shutdown)
 #   2. control plane:  talosctl shutdown (etcd stops cleanly; nothing left to drain onto)
 #   3. OPNsense:       ACPI shutdown via libvirt (FreeBSD honours it)
@@ -53,6 +54,29 @@ talos_down() { # <"name ip" ...>
   done
   wait_off "${TIMEOUT}" "${names[@]}"
 }
+
+export KUBECONFIG="${ROOT}/.cache/cluster/kubeconfig"
+step "0/3 databases: hibernate (clean PostgreSQL stop before the drain)"
+# CNPG's PodDisruptionBudget allows 0 disruptions for a primary. Once the other worker is gone it can't move,
+# so talosctl's drain would wait until the timeout and the VM would be forced off mid-write (2026-11-21).
+# Hibernation shuts PostgreSQL down cleanly and removes the pods; the volumes stay. make start wakes them.
+mapfile -t DBS < <(kubectl get clusters.postgresql.cnpg.io -A --request-timeout=10s \
+  -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}' 2>/dev/null)
+if ((${#DBS[@]})); then
+  for c in "${DBS[@]}"; do
+    kubectl -n "${c%/*}" annotate cluster "${c#*/}" cnpg.io/hibernation=on --overwrite >/dev/null && echo "  ${c}: hibernating"
+  done
+  deadline=$((SECONDS + 180))
+  for c in "${DBS[@]}"; do
+    until [[ -z "$(kubectl -n "${c%/*}" get pods -l "cnpg.io/cluster=${c#*/}" -o name 2>/dev/null)" ]]; do
+      ((SECONDS > deadline)) && { echo "  ${c}: pods still there after 3 min, continuing (the drain may hit its timeout)" >&2; break; }
+      sleep 3
+    done
+  done
+  echo "  databases stopped"
+else
+  echo "  no CNPG clusters (or the API isn't reachable): nothing to hibernate"
+fi
 
 step "1/3 workers"
 talos_down "${WORKERS[@]}"
