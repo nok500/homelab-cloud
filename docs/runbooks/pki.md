@@ -80,4 +80,5 @@ openssl s_client -connect 10.10.1.200:443 -servername argocd.lab.macpro </dev/nu
 | Re-render `ca.json` / issuer after changing `scripts/pki-render.py` | `python3 scripts/pki-render.py`, then commit and push |
 | Force a renewal | `kubectl -n gateway delete secret lab-wildcard-tls` (cert-manager re-issues within seconds) |
 | Cert stuck not Ready | `kubectl -n gateway describe certificaterequest`; `kubectl -n step-issuer logs deploy/step-issuer`; `kubectl -n step-ca logs sts/step-ca` |
+| Request says `StepClusterIssuer … is not Ready` although the issuer **is** Ready now | step-issuer doesn't re-queue a request when the issuer turns Ready, so it waits out controller backoff (up to ~16 min). `kubectl -n gateway delete certificaterequest --all` (cert-manager recreates it at once). Rebuilds avoid it: the Certificate is sync wave 1, after the issuer's Argo CD health check reports Ready |
 | New PKI (last resort) | `rm -rf .cache/ca` (keep `.cache/age`), then `make pki` (it also rebuilds the OpenBao seed), commit, push, rebuild, re-trust everywhere |

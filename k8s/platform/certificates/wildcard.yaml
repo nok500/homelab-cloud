@@ -5,6 +5,9 @@ kind: Certificate
 metadata:
   name: lab-wildcard
   namespace: gateway
+  annotations:
+    # After the StepClusterIssuer (wave 0) is Healthy, i.e. Ready (health check in k8s/bootstrap/argocd/values.yaml)
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   secretName: lab-wildcard-tls
   dnsNames:

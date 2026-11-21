@@ -8,6 +8,23 @@ configs:
   params:
     # TLS terminates at the Gateway (step-ca wildcard, ADR 0007); plain HTTP inside the cluster
     server.insecure: true
+  cm:
+    # Argo CD has no built-in health for step-issuer's issuer. Without one it counts as Healthy at once, so a
+    # Certificate in a later sync wave would be created before the issuer can sign. step-issuer doesn't
+    # re-queue CertificateRequests when the issuer turns Ready: the request then sits in controller backoff
+    # (up to ~16 min; seen on the 2026-11-21 rebuild).
+    resource.customizations.health.certmanager.step.sm_StepClusterIssuer: |
+      hs = {status = "Progressing", message = "Waiting for the issuer to verify step-ca"}
+      if obj.status ~= nil and obj.status.conditions ~= nil then
+        for _, c in ipairs(obj.status.conditions) do
+          if c.type == "Ready" and c.status == "True" then
+            hs.status = "Healthy"; hs.message = c.message
+          elseif c.type == "Ready" then
+            hs.message = c.message or hs.message
+          end
+        end
+      end
+      return hs
 
 # Sized for 1 GiB nodes: no Dex (SSO comes with Keycloak in Phase 3), no notifications.
 dex:
