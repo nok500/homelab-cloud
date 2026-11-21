@@ -47,4 +47,3 @@ keys.txt
 
 # downloaded/converted images (scripts/fetch-images.sh)
 .cache/
-temp/
