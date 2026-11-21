@@ -12,7 +12,8 @@ export SOPS_AGE_KEY_FILE="${ROOT}/.cache/age/key.txt"
 
 [[ -f "${SOPS_AGE_KEY_FILE}" ]] || { echo "missing ${SOPS_AGE_KEY_FILE} (restore it from backup; docs/runbooks/pki.md)" >&2; exit 1; }
 
-mapfile -t files < <(cd "${ROOT}" && git ls-files '*.enc.yaml')
+# only k8s/: other SOPS files (host/garage/secrets.enc.yaml) are not cluster objects
+mapfile -t files < <(cd "${ROOT}" && git ls-files 'k8s/*.enc.yaml')
 for f in "${files[@]}"; do
   echo "   ${f}"
   plain="$(sops --decrypt "${ROOT}/${f}")"
