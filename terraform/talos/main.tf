@@ -45,11 +45,21 @@ locals {
     EOT
     ,
     # OPNsense is the VPC's DNS and NTP server (like the Route 53 Resolver and AWS Time Sync).
+    # No search domain (ADR 0004): lab.macpro has a wildcard (*.lab.macpro -> the Gateway), so with
+    # `search lab.macpro` and the pods' ndots:5 every short name became <name>.lab.macpro: github.com
+    # resolved to 10.10.1.200 and Argo CD couldn't fetch the repo. A set `domains` list replaces the
+    # DHCP-provided one; `domains: []` would too, but an empty list vanishes when the patch is merged.
+    # cluster.local is harmless (pods search it anyway; it never reaches the wildcard). disableDefault
+    # drops the one derived from the hostname. Lab names are always used fully qualified.
     <<-EOT
     apiVersion: v1alpha1
     kind: ResolverConfig
     nameservers:
       - address: ${local.net.private_gateway}
+    searchDomains:
+      domains:
+        - cluster.local
+      disableDefault: true
     EOT
     ,
     <<-EOT
