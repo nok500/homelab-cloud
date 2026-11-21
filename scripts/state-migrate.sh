@@ -3,7 +3,7 @@
 # One-time. Safe to re-run: a stack already in Garage is skipped. Per stack, host first (talos reads host's outputs):
 #   1. preconditions: Garage reachable over TLS at s3.lab.macpro, no state for the stack in the bucket yet
 #   2. an age-encrypted copy of the local state in .cache/state-history/<stack>/ (…-pre-garage)
-#   3. terraform init -migrate-state, then the same resource count and serial must be in Garage
+#   3. terraform init -migrate-state, then resources and outputs in Garage must be identical (new lineage, serial 1)
 #   4. only then the plaintext local terraform.tfstate(.backup) files are removed
 set -euo pipefail
 

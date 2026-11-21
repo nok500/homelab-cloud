@@ -21,7 +21,9 @@ objects `host/terraform.tfstate` and `talos/terraform.tfstate`.
 2. **AdGuard rewrite** (you, in the AdGuard UI): *Filters → DNS rewrites → Add*: domain `s3.lab.macpro`, answer
    `192.168.8.207`. The exact name wins over the `*.lab.macpro` wildcard. Check: `getent hosts s3.lab.macpro`.
 3. `make state-migrate`: keeps an encrypted copy of each local state, runs `terraform init -migrate-state`, checks
-   the resource count and serial, removes the plaintext local files, then plans (expect no changes).
+   that resources and outputs in Garage are identical, removes the plaintext local files, then plans (expect no
+   changes). Terraform writes the copy with a **new lineage and serial 1**, so the `…-pre-garage` snapshot needs
+   `state push -force` if it's ever restored.
 4. Commit `host/garage/secrets.enc.yaml`.
 
 ## Restore a state snapshot
