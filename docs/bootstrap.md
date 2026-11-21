@@ -4,7 +4,7 @@ Everything after these steps is code. Keep this list as short as possible.
 
 ## 0. Workstation (where you run `make`)
 
-Requirements: `git`, `make`, `python3`, `curl`, `terraform` ≥ 1.15, SSH key access to the lab host.
+Requirements: `git`, `make`, `python3`, `curl`, `terraform` ≥ 1.15, `tmux` ≥ 3.4 (the lab monitor, `make tui`), SSH key access to the lab host.
 
 ```sh
 make hooks   # installs pinned tflint, gitleaks and pre-commit into ./.tools, then installs the git hooks

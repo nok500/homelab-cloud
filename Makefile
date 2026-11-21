@@ -54,8 +54,21 @@ plan: images init ## Terraform plan for the whole lab
 	$(TF_HOST) plan -input=false
 	$(TF_TALOS) plan -input=false
 
-.PHONY: up
-up: host cluster ## Build everything: VPC + OPNsense + Talos VMs, then the cluster (Cilium, Argo CD)
+.PHONY: up build
+# From a terminal, make up runs the build inside the lab TUI (bottom box) and leaves you in the TUI.
+# NO_TUI=1, or no terminal (CI, pipes), runs the plain build.
+up: ## Build everything (VPC, OPNsense, Talos VMs, cluster) and watch it in the TUI; NO_TUI=1 for plain output
+	@if [[ -t 0 && -t 1 && -z "$${NO_TUI:-}" ]] && command -v tmux >/dev/null; then scripts/tui.sh --up; \
+	else $(MAKE) --no-print-directory build; fi
+
+build: host cluster ## The build behind make up, without the TUI
+
+.PHONY: tui tui-kill
+tui: ## Lab monitor: status, host CPU/RAM/temp, VMs, pods, nodes, Talos dashboard (tmux; prefix d detaches)
+	scripts/tui.sh
+
+tui-kill: ## Close the lab monitor session
+	scripts/tui.sh --kill
 
 .PHONY: host
 host: images init ## VPC networks, OPNsense, Talos VMs (terraform/host)

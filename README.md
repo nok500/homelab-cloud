@@ -73,7 +73,8 @@ make help     # list targets
 make hooks    # install pinned tools + git hooks
 make lint     # pre-commit on all files
 make temps    # host CPU temperatures
-make up       # build the lab: VPC + OPNsense, Talos cluster, Cilium, Argo CD (~15 min)
+make up       # build the lab: VPC + OPNsense, Talos cluster, Cilium, Argo CD (~15 min), shown in the TUI
+make tui      # lab monitor: status, host CPU/RAM/temp, VMs, pods, nodes, Talos dashboard
 make route    # sudo: route 10.10.0.0/16 via OPNsense on this workstation
 make verify   # cluster acceptance checks (verify-host: Phase 1, needs the test VM)
 make shutdown # safe stop of all VMs (make poweroff: also the Mac Pro; make start: back up)
@@ -81,6 +82,7 @@ make destroy  # tear it down
 ```
 
 Manual one-time steps: [docs/bootstrap.md](docs/bootstrap.md). Design decisions: [docs/decisions/](docs/decisions/).
+Runbooks: [docs/runbooks/](docs/runbooks/) (the monitor: [monitoring.md](docs/runbooks/monitoring.md)).
 
 ## Layout
 
