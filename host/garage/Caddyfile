@@ -1,0 +1,12 @@
+# TLS in front of Garage's S3 API (ADR 0010). The certificate is a static file signed by the lab intermediate
+# CA (scripts/garage-deploy.sh), so no ACME and no admin API.
+{
+	auto_https off
+	admin off
+}
+
+:3900 {
+	tls /tls/s3.crt /tls/s3.key
+	# Host is passed through unchanged, so SigV4 signatures made for s3.lab.macpro:3900 still verify.
+	reverse_proxy garage:3900
+}

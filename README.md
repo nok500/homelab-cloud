@@ -10,6 +10,8 @@ modules tested against the AWS Emulator.
 > on dedicated worker disks ([ADR 0006](docs/decisions/0006-storage-and-state.md)); TLS everywhere from a private,
 > name-constrained CA: step-ca + cert-manager ([ADR 0007](docs/decisions/0007-private-pki.md)); secrets from OpenBao via
 > External Secrets, self-initialized and seeded on every rebuild ([ADR 0008](docs/decisions/0008-secrets-openbao.md)).
+> Terraform state in Garage S3 on the Mac Pro host, outside the lab, over TLS from the lab CA
+> ([ADR 0010](docs/decisions/0010-garage-host-s3.md)).
 > Argo CD UI: https://argocd.lab.macpro/ ([access runbook](docs/runbooks/cluster-access.md)).
 
 ## Architecture
@@ -24,6 +26,7 @@ flowchart LR
   end
   subgraph host["Mac Pro: KVM/libvirt (the 'region')"]
     opn[OPNsense VM 192.168.8.115<br/>router · NAT · firewall<br/>Unbound DNS · NTP · DHCP]
+    garage[(Garage S3 + Caddy TLS<br/>s3.lab.macpro:3900 · Docker<br/>Terraform state · backups)]
     subgraph pub["public subnet 10.10.0.0/24"]
       pubnote[reserved]
     end
@@ -37,11 +40,13 @@ flowchart LR
       argo[Argo CD<br/>app-of-apps]
     end
     subgraph data["data subnet 10.10.2.0/24"]
-      db[(CNPG · Garage)]
+      db[(CNPG)]
     end
   end
   gh[(GitHub repo)]
   ws -- "qemu+ssh (Terraform)" --> host
+  ws -- "Terraform state (S3, TLS)" --> garage
+  dns -. "s3.lab.macpro" .-> garage
   ws -- "route 10.10.0.0/16<br/>kube API · Talos API · HTTP" --> opn
   LAN <--> opn
   opn --- pub & priv & data
@@ -73,6 +78,7 @@ make help     # list targets
 make hooks    # install pinned tools + git hooks
 make lint     # pre-commit on all files
 make temps    # host CPU temperatures
+make garage   # Garage S3 on the host (Terraform state, backups): deploy/converge, no sudo
 make up       # build the lab: VPC + OPNsense, Talos cluster, Cilium, Argo CD (~15 min), shown in the TUI
 make tui      # lab monitor: status, host CPU/RAM/temp, VMs, pods, nodes, Talos dashboard
 make route    # sudo: route 10.10.0.0/16 via OPNsense on this workstation

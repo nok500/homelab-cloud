@@ -31,14 +31,25 @@ lint: tools ## Run all pre-commit checks on every file
 temps: ## Show lab host CPU temperatures and fan speed
 	scripts/host-temps.sh
 
-TF_HOST := terraform -chdir=terraform/host
-TF_TALOS := terraform -chdir=terraform/talos
+# scripts/tf.sh: local lock + encrypted state history around terraform (state lives in Garage, ADR 0010)
+TF_HOST := scripts/tf.sh host
+TF_TALOS := scripts/tf.sh talos
 # AUTO_APPROVE=1 make up|destroy skips the interactive confirmation
 TF_APPROVE := $(if $(AUTO_APPROVE),-auto-approve,)
 LAB_CIDR := 10.10.0.0/16
 WAN_IP_FILE := .cache/host/opnsense-wan.ip
 export KUBECONFIG := $(CURDIR)/.cache/cluster/kubeconfig
 export TALOSCONFIG := $(CURDIR)/.cache/cluster/talosconfig
+
+.PHONY: garage state-migrate state-history
+garage: ## Deploy/converge Garage S3 (Terraform state, CNPG backups) on the Mac Pro host; no sudo, idempotent
+	scripts/garage-deploy.sh
+
+state-migrate: ## One-time: move local Terraform state into Garage (keeps an encrypted copy)
+	scripts/state-migrate.sh
+
+state-history: ## List the encrypted Terraform state snapshots (.cache/state-history; restore: docs/runbooks/terraform-state.md)
+	@for s in host talos; do echo "$$s:"; ls -1 .cache/state-history/$$s 2>/dev/null | tail -5 | sed 's/^/  /'; done
 
 .PHONY: images
 images: ## Download + verify VM base images into .cache/images

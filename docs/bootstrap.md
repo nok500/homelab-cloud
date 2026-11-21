@@ -101,3 +101,14 @@ make destroy  # removes everything libvirt-side; the host is back to its pre-lab
 After a rebuild nothing here repeats: `bootstrap-cluster.sh` re-applies the OpenBao seed (`make secrets`),
 OpenBao seeds itself from it, External Secrets fills in the rest, and the root stays the same.
 OpenBao admin: `make bao-password`, see `docs/runbooks/secrets.md`.
+
+## 6. Phase 3: Terraform state in Garage (once)
+
+1. `make garage` deploys Garage S3 and its TLS proxy on the Mac Pro host (Docker Compose, no sudo), and writes
+   `host/garage/secrets.enc.yaml` the first time: commit it.
+2. AdGuard Home (192.168.8.1) → *Filters → DNS rewrites*: `s3.lab.macpro` → `192.168.8.207`. The exact name wins
+   over the `*.lab.macpro` wildcard. Check: `getent hosts s3.lab.macpro`.
+3. `make state-migrate` moves existing local state into Garage (skip on a fresh clone: there's nothing local).
+
+Details, restore and rebuild: `docs/runbooks/terraform-state.md`. After a lab rebuild nothing here repeats:
+Garage lives outside the lab.

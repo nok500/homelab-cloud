@@ -1,6 +1,6 @@
 # 0006: Storage: local-path PVs on worker data disks; Terraform state in a host-level Garage
 
-- Status: accepted (state part lands with Phase 3 milestone 4)
+- Status: accepted. The state part was implemented in Phase 3 milestone 4 (2026-11-21): [ADR 0010](0010-garage-host-s3.md)
 - Date: 2026-11-20
 
 ## Persistent volumes: local-path-provisioner

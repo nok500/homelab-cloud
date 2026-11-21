@@ -1,7 +1,19 @@
+# the host stack's outputs (node IPs, VPC facts), read from the same Garage bucket
 data "terraform_remote_state" "host" {
-  backend = "local"
+  backend = "s3"
   config = {
-    path = var.host_state
+    bucket                      = "tfstate"
+    key                         = "host/terraform.tfstate"
+    region                      = "garage"
+    endpoints                   = { s3 = "https://s3.lab.macpro:3900" }
+    profile                     = "tfstate"
+    shared_credentials_files    = ["../../.cache/garage/credentials"]
+    use_path_style              = true
+    skip_credentials_validation = true
+    skip_region_validation      = true
+    skip_requesting_account_id  = true
+    skip_metadata_api_check     = true
+    skip_s3_checksum            = true
   }
 }
 

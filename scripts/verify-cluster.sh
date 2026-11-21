@@ -9,6 +9,8 @@
 #   6. Storage: the default StorageClass binds a PVC on a worker data disk and a pod can write to it.
 #   7. Secrets: OpenBao initialized + unsealed, the ClusterSecretStore is valid, every ExternalSecret synced,
 #      and the OpenBao UI answers on https://bao.lab.macpro.
+#   8. Terraform state: Garage on the Mac Pro host is up, s3.lab.macpro resolves to it, its TLS verifies and has
+#      more than 30 days left, and both stacks' state objects are in the tfstate bucket.
 # Waits (bounded) for things that converge after bootstrap, so it can run straight after `make up`.
 set -uo pipefail
 
@@ -159,6 +161,26 @@ else
 fi
 check "OpenBao UI https://bao.lab.macpro" \
   retry 6 10 curl -fsS -m 5 -o /dev/null --cacert "${ROOT_CA}" --resolve "bao.lab.macpro:443:${GATEWAY_IP}" https://bao.lab.macpro/ui/
+
+echo "8. Terraform state (Garage on the Mac Pro host)"
+S3="s3.lab.macpro" S3_IP="${LAB_HOST:-192.168.8.207}"
+garage_up() {
+  ssh -o BatchMode=yes macpro "docker inspect -f '{{.State.Running}}' homelab-garage-garage-1 homelab-garage-caddy-1" \
+    | grep -c true | grep -qx 2
+}
+check "Garage + TLS proxy containers running on the host" garage_up
+check "${S3} resolves to ${S3_IP} (AdGuard rewrite)" sh -c "getent ahostsv4 ${S3} | awk 'NR==1{print \$1}' | grep -qx ${S3_IP}"
+check "S3 TLS certificate valid for more than 30 days (make garage renews)" \
+  sh -c "! step certificate needs-renewal '${ROOT}/.cache/garage/tls/s3.crt' --expires-in 720h"
+state_objects() {
+  local id secret
+  id="$(awk '/aws_access_key_id/{print $3}' "${ROOT}/.cache/garage/credentials")"
+  secret="$(awk '/aws_secret_access_key/{print $3}' "${ROOT}/.cache/garage/credentials")"
+  curl -fsS -m 10 --cacert "${ROOT_CA}" --resolve "${S3}:3900:${S3_IP}" --aws-sigv4 "aws:amz:garage:s3" \
+    --user "${id}:${secret}" -H 'x-amz-content-sha256: UNSIGNED-PAYLOAD' "https://${S3}:3900/tfstate?list-type=2" \
+    | grep -o '<Key>[^<]*</Key>' | grep -c -e host/terraform.tfstate -e talos/terraform.tfstate | grep -qx 2
+}
+check "tfstate bucket holds host + talos state (TLS verified against the lab root)" state_objects
 
 echo
 printf '%d passed, %d failed\n' "${pass}" "${fail}"

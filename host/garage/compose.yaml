@@ -1,0 +1,38 @@
+---
+# Garage S3 on the Mac Pro host, outside the lab (ADR 0010). Deployed by scripts/garage-deploy.sh (make garage)
+# to ~/homelab-garage on the host; `make destroy` never touches it.
+#   garage  single node, S3 API only on the internal network; admin + RPC never published
+#   caddy   TLS for https://s3.lab.macpro:3900 (cert signed offline by the lab intermediate CA)
+# restart: unless-stopped + the systemd-managed Docker daemon bring both back after a host boot.
+name: homelab-garage
+
+services:
+  garage:
+    image: dxflrs/garage:v2.5.0@sha256:677e5b758e4425a325b811c425c026bf35a4bf42f7ddbaa773de3f4fd779a5a5
+    restart: unless-stopped
+    volumes:
+      - ./garage.toml:/etc/garage.toml:ro
+      - meta:/var/lib/garage/meta
+      - data:/var/lib/garage/data
+    networks: [garage]
+    mem_limit: 512m
+    stop_grace_period: 30s
+
+  caddy:
+    image: caddy:2.11.9@sha256:4851e54a46b206517c574821bb5cc67f170d2156041e9fbc4c9193b45e84a75b
+    restart: unless-stopped
+    depends_on: [garage]
+    ports:
+      - "${GARAGE_BIND_IP:-192.168.8.207}:3900:3900"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./tls:/tls:ro
+    networks: [garage]
+    mem_limit: 128m
+
+volumes:
+  meta:
+  data:
+
+networks:
+  garage:

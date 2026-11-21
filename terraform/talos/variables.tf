@@ -20,9 +20,3 @@ variable "talos_schematic_id" {
   type        = string
   default     = "ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515"
 }
-
-variable "host_state" {
-  description = "Path to the terraform/host state, which provides the node IPs and VPC facts."
-  type        = string
-  default     = "../host/terraform.tfstate"
-}

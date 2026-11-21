@@ -1,0 +1,22 @@
+# Garage v2 config (ADR 0010). Rendered by scripts/garage-deploy.sh; the placeholders come from host/garage/secrets.enc.yaml.
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "lmdb"
+# a consistent copy of the metadata DB every 6 h: the recovery path after an unclean host stop
+metadata_auto_snapshot_interval = "6h"
+
+# one node: no redundancy inside Garage. Terraform state also lives age-encrypted on voodoo (.cache/state-history)
+replication_factor = 1
+
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "127.0.0.1:3901"
+rpc_secret = "${rpc_secret}"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "[::]:3900"
+
+[admin]
+api_bind_addr = "[::]:3903"
+admin_token = "${admin_token}"
+metrics_token = "${metrics_token}"
