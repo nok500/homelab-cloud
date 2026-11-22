@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # One-time cluster bootstrap after `terraform -chdir=terraform/talos apply`:
 #   Gateway API CRDs -> Cilium (nodes become Ready) -> Argo CD -> repo credential -> root app-of-apps.
-# From then on Argo CD owns all of these (k8s/bootstrap/apps/*). Safe to re-run: everything is
-# helm upgrade --install / kubectl apply, using the chart versions pinned in the Application files.
+# From then on Argo CD owns all of these (k8s/bootstrap/apps/*). Safe to re-run, e.g. `make up` on a lab that
+# exists: once the root app exists, the Gateway API CRDs, Cilium and Argo CD are left to Argo CD (a helm upgrade
+# would collide with its server-side-apply field ownership, 2026-11-22); the rest is idempotent kubectl apply.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -19,25 +20,36 @@ ARGOCD_VERSION="$(chart_version "${ROOT}/k8s/bootstrap/apps/argocd.yaml" argo-cd
 [[ -n "${CILIUM_VERSION}" && -n "${ARGOCD_VERSION}" ]] || { echo "could not read chart versions" >&2; exit 1; }
 
 step "API server (etcd + kube-apiserver come up a few minutes after talos_machine_bootstrap)"
+WAN_IP="$(cat "${ROOT}/.cache/host/opnsense-wan.ip" 2>/dev/null || true)"
 for i in $(seq 1 60); do
   kubectl get --raw /readyz >/dev/null 2>&1 && break
+  # the usual cause after a workstation reboot: the route to the VPC is gone (make route, sudo)
+  if [[ "${i}" -eq 3 && -n "${WAN_IP}" ]] && ! ip route get 10.10.1.20 2>/dev/null | grep -q "via ${WAN_IP}"; then
+    printf '   \033[33mno route to 10.10.0.0/16 via OPNsense (%s): run make route in another terminal (sudo)\033[0m\n' "${WAN_IP}"
+  fi
   [[ "${i}" -eq 60 ]] && { echo "API server not ready after 10 min" >&2; exit 1; }
   sleep 10
 done
 kubectl version -o json | python3 -c 'import json,sys; print("server", json.load(sys.stdin)["serverVersion"]["gitVersion"])'
 
-step "Gateway API CRDs (before Cilium, which only enables its Gateway controller if they exist)"
-kubectl apply --server-side -k "${ROOT}/k8s/platform/gateway-api"
+if kubectl -n argocd get application root >/dev/null 2>&1; then
+  step "already bootstrapped: Gateway API CRDs, Cilium and Argo CD are managed by Argo CD, not reinstalled"
+  kubectl wait --for=condition=Ready nodes --all --timeout=10m
+  kubectl get nodes -o wide
+else
+  step "Gateway API CRDs (before Cilium, which only enables its Gateway controller if they exist)"
+  kubectl apply --server-side -k "${ROOT}/k8s/platform/gateway-api"
 
-step "Cilium ${CILIUM_VERSION}"
-helm upgrade --install cilium cilium --repo https://helm.cilium.io --version "${CILIUM_VERSION}" \
-  --namespace kube-system -f "${ROOT}/k8s/platform/cilium/values.yaml" --wait --timeout 15m
-kubectl wait --for=condition=Ready nodes --all --timeout=10m
-kubectl get nodes -o wide
+  step "Cilium ${CILIUM_VERSION}"
+  helm upgrade --install cilium cilium --repo https://helm.cilium.io --version "${CILIUM_VERSION}" \
+    --namespace kube-system -f "${ROOT}/k8s/platform/cilium/values.yaml" --wait --timeout 15m
+  kubectl wait --for=condition=Ready nodes --all --timeout=10m
+  kubectl get nodes -o wide
 
-step "Argo CD (chart ${ARGOCD_VERSION})"
-helm upgrade --install argocd argo-cd --repo https://argoproj.github.io/argo-helm --version "${ARGOCD_VERSION}" \
-  --namespace argocd --create-namespace -f "${ROOT}/k8s/bootstrap/argocd/values.yaml" --wait --timeout 15m
+  step "Argo CD (chart ${ARGOCD_VERSION})"
+  helm upgrade --install argocd argo-cd --repo https://argoproj.github.io/argo-helm --version "${ARGOCD_VERSION}" \
+    --namespace argocd --create-namespace -f "${ROOT}/k8s/bootstrap/argocd/values.yaml" --wait --timeout 15m
+fi
 
 step "repository credential (read-only deploy key: stays a bootstrap secret, Argo CD needs it before OpenBao exists)"
 [[ -f "${DEPLOY_KEY}" ]] || { echo "missing ${DEPLOY_KEY} (see docs/bootstrap.md)" >&2; exit 1; }
