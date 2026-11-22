@@ -9,7 +9,7 @@ export KUBECONFIG=$PWD/.cache/cluster/kubeconfig TALOSCONFIG=$PWD/.cache/cluster
 export PATH=$PWD/.tools/bin:$PATH        # pinned talosctl
 ```
 
-Prerequisites on the workstation: the lab route (`make route`, once per boot), the lab root CA trusted
+Prerequisites on the workstation: the lab route (`make up`/`make start` add it when missing and sudo asks for your password; `make route` on its own), the lab root CA trusted
 (`make trust-root`, once) and DNS for `*.lab.macpro`
 (AdGuard rewrite to the Gateway, see `docs/bootstrap.md`). If nothing answers, see
 [opnsense.md § Connectivity loss](opnsense.md#connectivity-loss-find-the-hop-then-recover).

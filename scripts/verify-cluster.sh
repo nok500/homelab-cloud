@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 2 acceptance checks, run from the admin workstation after `make up && make route`:
+# Phase 2 acceptance checks, run from the admin workstation after `make up` (which also sets the lab route):
 #   1. Talos: every node answers its API, has time from OPNsense, and the guest agent is up.
 #   2. Kubernetes: all nodes Ready, no kube-proxy, CoreDNS resolves in-cluster and external names.
 #   3. Cilium: agents and operator healthy, LB pool has IPs, L2 announcement policy present.

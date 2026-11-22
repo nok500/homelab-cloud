@@ -85,7 +85,7 @@ make temps    # host CPU temperatures
 make garage   # Garage S3 on the host (Terraform state, backups): deploy/converge, no sudo
 make up       # build the lab: VPC + OPNsense, Talos cluster, Cilium, Argo CD (~15 min), shown in the TUI
 make tui      # lab monitor: status, host CPU/RAM/temp, VMs, pods, nodes, Talos dashboard
-make route    # sudo: route 10.10.0.0/16 via OPNsense on this workstation
+make route    # sudo: route 10.10.0.0/16 via OPNsense (make up/start add it when missing)
 make db-restore-test  # point-in-time restore of the demo database from Garage, checked row by row
 make verify   # cluster acceptance checks (verify-host: Phase 1, needs the test VM)
 make shutdown # safe stop of all VMs (make poweroff: also the Mac Pro; make start: back up)

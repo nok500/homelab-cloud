@@ -25,7 +25,7 @@ for i in $(seq 1 60); do
   kubectl get --raw /readyz >/dev/null 2>&1 && break
   # the usual cause after a workstation reboot: the route to the VPC is gone (make route, sudo)
   if [[ "${i}" -eq 3 && -n "${WAN_IP}" ]] && ! ip route get 10.10.1.20 2>/dev/null | grep -q "via ${WAN_IP}"; then
-    printf '   \033[33mno route to 10.10.0.0/16 via OPNsense (%s): run make route in another terminal (sudo)\033[0m\n' "${WAN_IP}"
+    printf '   \033[33mno route to 10.10.0.0/16 via OPNsense (%s): run make route (sudo); make up normally sets it before this step\033[0m\n' "${WAN_IP}"
   fi
   [[ "${i}" -eq 60 ]] && { echo "API server not ready after 10 min" >&2; exit 1; }
   sleep 10

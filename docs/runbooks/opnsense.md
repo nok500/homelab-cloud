@@ -20,7 +20,7 @@ VMs. Find the first broken hop before restarting anything.
 | # | Check | Healthy | If not |
 |---|---|---|---|
 | 1 | `ping -c1 192.168.8.207` | reply | **Host** is down or off the network: power, fans, cables, switch. `ip neigh show 192.168.8.207` showing `INCOMPLETE` means no ARP at all. Nothing below matters until this works. `make temps` once it's back |
-| 2 | `ip route get 10.10.1.20` | `via 192.168.8.115` | `make route` (gone after every voodoo reboot). Without it, Terraform hangs at `talos_machine_configuration_apply … Still creating…` |
+| 2 | `ip route get 10.10.1.20` | `via 192.168.8.115` | `make route` (gone after every voodoo reboot; `make up`/`make start` re-add it themselves). Without it, Terraform hangs at `talos_machine_configuration_apply … Still creating…` |
 | 3 | `ssh macpro virsh -c qemu:///system list --all` | all `running` | `virsh -c qemu:///system start <vm>` (autostart covers normal host boots) |
 | 4 | `ssh macpro ip -br link show enp11s0` | `UP … LOWER_UP` | Reseat the 2nd NIC cable; macvtap recovers when the carrier returns |
 | 5 | `ping -c1 192.168.8.115` | reply | OPNsense itself: see the ladder below |

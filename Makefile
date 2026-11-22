@@ -72,7 +72,11 @@ up: ## Build everything (VPC, OPNsense, Talos VMs, cluster) and watch it in the 
 	@if [[ -t 0 && -t 1 && -z "$${NO_TUI:-}" ]] && command -v tmux >/dev/null; then scripts/tui.sh --up; \
 	else $(MAKE) --no-print-directory build; fi
 
-build: host cluster ## The build behind make up, without the TUI
+build: host route-ensure cluster ## The build behind make up, without the TUI
+
+.PHONY: route-ensure
+route-ensure: # make up/start: add the VPC route only if it's missing (sudo asks for the password then)
+	scripts/route-ensure.sh
 
 .PHONY: tui tui-kill
 tui: ## Lab monitor: status, host CPU/RAM/temp, VMs, pods, nodes, Talos dashboard (tmux; prefix d detaches)
@@ -84,7 +88,7 @@ tui-kill: ## Close the lab monitor session
 .PHONY: host
 host: images init ## VPC networks, OPNsense, Talos VMs (terraform/host)
 	$(TF_HOST) apply -input=false $(TF_APPROVE)
-	@echo "OPNsense WAN: $$(cat $(WAN_IP_FILE))   (make route once per workstation boot)"
+	@echo "OPNsense WAN: $$(cat $(WAN_IP_FILE))"
 
 .PHONY: cluster
 cluster: init ## Talos config + bootstrap (terraform/talos), then Cilium + Argo CD (scripts/bootstrap-cluster.sh)
@@ -113,10 +117,8 @@ start: ## Start the lab VMs after `make shutdown` (OPNsense first); not needed a
 	scripts/lab-start.sh
 
 .PHONY: route
-route: ## Route the lab CIDR via the OPNsense WAN on this workstation (sudo)
-	@test -s $(WAN_IP_FILE) || { echo "no WAN IP yet, run make up" >&2; exit 1; }
-	sudo ip route replace $(LAB_CIDR) via $$(cat $(WAN_IP_FILE))
-	@ip route show $(LAB_CIDR)
+route: ## Route the lab CIDR via the OPNsense WAN on this workstation (sudo; make up/start do it when missing)
+	FORCE=1 scripts/route-ensure.sh
 
 .PHONY: unroute
 unroute: ## Remove the lab route from this workstation (sudo)

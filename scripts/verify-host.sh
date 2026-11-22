@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 1 acceptance checks, run from the admin workstation after `make up && make route`:
+# Phase 1 acceptance checks, run from the admin workstation after `make up` (which also sets the lab route):
 #   1. OPNsense is reachable on its WAN (SSH, key auth) and the VPC interfaces are up.
 #   2. The test VM on the private subnet got a DHCP lease from OPNsense.
 #   3. The test VM reaches the internet through OPNsense NAT (ICMP, DNS, HTTPS).

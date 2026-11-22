@@ -20,8 +20,8 @@ Measured 2026-11-20: `make shutdown` takes about 1.5 min, with no VM forced off.
 | `make poweroff` / any host boot | Power on the Mac Pro. libvirt autostarts all four VMs (Terraform sets `autostart`). Then `make start` (it waits until every Talos API and node is up), then `make verify` |
 | `make shutdown` (host still up) | `make start`: OPNsense first (DHCP/DNS/NAT for everything), then the control plane, then the workers, and it waits until all nodes are Ready |
 
-voodoo also needs `make route` again if *it* rebooted. Without it, `make up`/`make start` wait on the API forever
-(the bootstrap now prints a hint after 30 s).
+If voodoo rebooted, its route to the lab is gone: `make start` and `make up` add it back themselves (sudo asks for
+your password, only when it's missing). `make route` does just that step.
 
 `make up` on a lab that already exists is safe too (it starts the VMs, then the bootstrap sees the root app and
 leaves Cilium and Argo CD to Argo CD), but `make start` is the quick path after `make shutdown`.

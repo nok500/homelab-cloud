@@ -12,6 +12,7 @@ start() { [[ "$("${VIRSH[@]}" domstate "$1" 2>/dev/null | head -1)" == "running"
 echo ">> OPNsense"
 start opnsense
 for _ in $(seq 1 36); do ping -c1 -W2 "${WAN_IP}" >/dev/null 2>&1 && { echo "  WAN ${WAN_IP} up"; break; }; sleep 5; done
+"${ROOT}/scripts/route-ensure.sh"   # gone after a workstation reboot; sudo asks only if it's missing
 
 nodes_json="$(terraform -chdir="${ROOT}/terraform/host" output -json talos_nodes)"
 echo ">> control plane, then workers"

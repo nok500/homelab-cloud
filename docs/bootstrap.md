@@ -71,7 +71,8 @@ LAN NIC instead (the host then can't reach OPNsense; see ADR 0003).
 
 ```sh
 make up       # images -> pool, networks, OPNsense (scripted first boot), test VM   (~2 min)
-make route    # sudo: 10.10.0.0/16 via OPNsense WAN on this workstation (not persistent)
+make route    # sudo: 10.10.0.0/16 via OPNsense WAN on this workstation (not persistent;
+               # make up and make start add it themselves when missing, asking for the sudo password)
 make verify   # Phase 1 acceptance checks
 make destroy  # removes everything libvirt-side; the host is back to its pre-lab state
 ```
