@@ -1,0 +1,31 @@
+# Garage UI (noooste/garage-ui, ADR 0010 amendment). Rendered by scripts/garage-deploy.sh; the placeholders come
+# from host/garage/secrets.enc.yaml. Reached only through Caddy: https://s3.lab.macpro:3909 (lab CA TLS).
+server:
+  host: "::"
+  port: 8080
+  environment: production
+  protocol: https
+  domain: s3.lab.macpro
+  root_url: "https://s3.lab.macpro:3909"
+garage:
+  endpoint: "http://garage:3900"
+  region: garage
+  admin_endpoint: "http://garage:3903"
+  admin_token: "${admin_token}"   # full control of Garage: hence the login below, LAN-only, TLS
+auth:
+  # its own login until Keycloak (Phase 3 milestone 6), then OIDC. Token login stays off: no pasting the
+  # admin token into a browser.
+  admin:
+    enabled: true
+    username: admin
+    password: "${garage_ui_admin_password}"
+  token:
+    enabled: false
+  oidc:
+    enabled: false
+  metrics_public: false
+cors:
+  enabled: false   # the UI and its API share one origin
+logging:
+  level: info
+  format: text

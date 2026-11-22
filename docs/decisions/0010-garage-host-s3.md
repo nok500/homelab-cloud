@@ -36,3 +36,20 @@ Re-test both on every Garage upgrade: if conditional writes start working, switc
   scripts do).
 - Read-only `terraform output` calls (verify, start/shutdown, TUI) need the backend too: Garage down means those
   scripts can't find the node IPs.
+
+## Amendment (2026-11-22): Garage UI
+
+[noooste/garage-ui](https://github.com/Noooste/garage-ui) **v0.14.0** (MIT, 2026-10-14, pinned by digest) runs as a
+third service in the same Compose project, reached only through Caddy at **`https://s3.lab.macpro:3909`**: the
+same name and certificate as S3, a second port, so no DNS change.
+
+- It holds Garage's **admin token**, so whoever logs in can do anything, including deleting `tfstate`. Its own
+  docs say its access control "is not a security boundary". So: its admin login only (user `admin`, a random
+  password in `host/garage/secrets.enc.yaml`, `make garage-ui-password`); token login off (no pasting the admin
+  token into a browser); no published port of its own; LAN address only; TLS from the lab CA.
+- Tested locally before deploying: the API answers 401 without a login, a wrong password and token login get 401,
+  and the admin login lists the buckets. `make garage` and `make verify` (section 8) repeat the login-wall check.
+- Its session-signing key is generated on first start into the `ui-data` volume and survives restarts.
+- Moves to Keycloak OIDC in Phase 3 milestone 6 (the UI supports it).
+- `make garage` now restarts only the container whose own files changed. Adding the UI restarted Garage too:
+  a few seconds without S3, which CNPG's archiving retries through.

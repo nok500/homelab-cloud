@@ -26,6 +26,9 @@ your password, only when it's missing). `make route` does just that step.
 `make up` on a lab that already exists is safe too (it starts the VMs, then the bootstrap sees the root app and
 leaves Cilium and Argo CD to Argo CD), but `make start` is the quick path after `make shutdown`.
 
+An interrupted `make shutdown` (Ctrl-C after its first step) leaves the databases hibernated while the lab
+keeps running: `make start` wakes them, or `kubectl -n databases annotate cluster --all cnpg.io/hibernation-`.
+
 Nodes come back schedulable on their own (Talos uncordons after a clean boot). Workloads are back a few
 minutes after the nodes; `make verify` checks everything.
 

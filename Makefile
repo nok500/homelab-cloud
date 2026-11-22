@@ -41,9 +41,13 @@ WAN_IP_FILE := .cache/host/opnsense-wan.ip
 export KUBECONFIG := $(CURDIR)/.cache/cluster/kubeconfig
 export TALOSCONFIG := $(CURDIR)/.cache/cluster/talosconfig
 
-.PHONY: garage state-migrate state-history
+.PHONY: garage garage-ui-password state-migrate state-history
 garage: ## Deploy/converge Garage S3 (Terraform state, CNPG backups) on the Mac Pro host; no sudo, idempotent
 	scripts/garage-deploy.sh
+
+garage-ui-password: ## Garage UI login (https://s3.lab.macpro:3909, user admin): print the password
+	@SOPS_AGE_KEY_FILE=.cache/age/key.txt sops --decrypt host/garage/secrets.enc.yaml \
+	  | python3 -c 'import sys, yaml; print(yaml.safe_load(sys.stdin)["stringData"]["garage_ui_admin_password"])'
 
 state-migrate: ## One-time: move local Terraform state into Garage (keeps an encrypted copy)
 	scripts/state-migrate.sh

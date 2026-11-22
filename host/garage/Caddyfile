@@ -10,3 +10,9 @@
 	# Host is passed through unchanged, so SigV4 signatures made for s3.lab.macpro:3900 still verify.
 	reverse_proxy garage:3900
 }
+
+# Garage UI: same name and certificate, second port (no extra DNS record)
+:3909 {
+	tls /tls/s3.crt /tls/s3.key
+	reverse_proxy garage-ui:8080
+}

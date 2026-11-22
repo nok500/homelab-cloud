@@ -2,7 +2,7 @@
 # make garage: deploy or converge Garage S3 on the Mac Pro host (ADR 0010). Idempotent: safe to re-run.
 #   1. secrets   host/garage/secrets.enc.yaml (SOPS): generated once, extended when a bucket is added
 #   2. TLS       s3.lab.macpro + the host IP, signed offline by the lab intermediate CA, 1 y, renewed < 30 d
-#   3. deploy    compose.yaml, Caddyfile, garage.toml, tls/ -> ~/homelab-garage on the host; docker compose up
+#   3. deploy    compose.yaml, Caddyfile, garage.toml, garage-ui.yaml, tls/ -> ~/homelab-garage; docker compose up
 #   4. init      single-node layout, buckets, keys imported from the SOPS file (same keys after a reinstall)
 #   5. creds     .cache/garage/credentials for the Terraform S3 backend (profile "tfstate")
 #   6. check     TLS verifies against the lab root; the tfstate key can list its bucket
@@ -50,6 +50,7 @@ d = dict(old)
 d.setdefault("rpc_secret", secrets.token_hex(32))
 d.setdefault("admin_token", secrets.token_urlsafe(32))
 d.setdefault("metrics_token", secrets.token_urlsafe(32))
+d.setdefault("garage_ui_admin_password", secrets.token_urlsafe(24))   # Garage UI login (user admin)
 for b in buckets:
     d.setdefault(f"{b}_key_id", "GK" + secrets.token_hex(12))    # Garage key id format: GK + 24 hex
     d.setdefault(f"{b}_secret_key", secrets.token_hex(32))
@@ -98,15 +99,25 @@ cp "${crt}" "${key}" "${TMP}/stage/tls/"
 env rpc_secret="${rpc_secret}" admin_token="${admin_token}" metrics_token="${metrics_token}" \
   python3 -I -c 'import os,string,sys; print(string.Template(open(sys.argv[1]).read()).substitute(os.environ), end="")' \
   "${SRC}/garage.toml.tmpl" > "${TMP}/stage/garage.toml"
-hash="$(cd "${TMP}/stage" && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-16)"
-old_hash="$(remote "cat ${DIR}/.deployed 2>/dev/null || true")"
-tar -C "${TMP}/stage" -cf - . | remote "mkdir -p -m 700 ${DIR} && tar -xf - -C ${DIR} && chmod 600 ${DIR}/garage.toml ${DIR}/tls/s3.key"
+env admin_token="${admin_token}" garage_ui_admin_password="${garage_ui_admin_password}" \
+  python3 -I -c 'import os,string,sys; print(string.Template(open(sys.argv[1]).read()).substitute(os.environ), end="")' \
+  "${SRC}/garage-ui.yaml.tmpl" > "${TMP}/stage/garage-ui.yaml"
+# one hash per service's own files, so a change restarts only that container (compose.yaml changes are
+# applied by `up -d` itself, which recreates what changed)
+svc_hash() { (cd "${TMP}/stage" && cat "$@" | sha256sum | cut -c1-16); }
+hashes="garage=$(svc_hash garage.toml) caddy=$(svc_hash Caddyfile tls/s3.crt tls/s3.key) garage-ui=$(svc_hash garage-ui.yaml)"
+old_hashes="$(remote "cat ${DIR}/.deployed 2>/dev/null || true")"
+tar -C "${TMP}/stage" -cf - . | remote "mkdir -p -m 700 ${DIR} && tar -xf - -C ${DIR} && chmod 600 ${DIR}/garage.toml ${DIR}/garage-ui.yaml ${DIR}/tls/s3.key"
 remote "${COMPOSE} up -d --remove-orphans --quiet-pull" 2>&1 | grep -vE '^\s*$' | sed 's/^/  /'
-if [[ -n "${old_hash}" && "${old_hash}" != "${hash}" ]]; then
-  echo "  config changed: restarting"
-  remote "${COMPOSE} restart" 2>&1 | sed 's/^/  /'
+changed=()
+for kv in ${hashes}; do
+  [[ " ${old_hashes} " == *" ${kv} "* ]] || changed+=("${kv%%=*}")
+done
+if [[ -n "${old_hashes}" && ${#changed[@]} -gt 0 ]]; then
+  echo "  config changed for: ${changed[*]}: restarting only those"
+  remote "${COMPOSE} restart ${changed[*]}" 2>&1 | sed 's/^/  /'
 fi
-remote "echo ${hash} > ${DIR}/.deployed"
+remote "echo '${hashes}' > ${DIR}/.deployed"
 
 # ---------------------------------------------------------------- 4. init
 say "layout, buckets, keys"
@@ -154,6 +165,28 @@ other="$(curl -s -o /dev/null -w '%{http_code}' --resolve "${S3_NAME}:${PORT}:${
   -H 'x-amz-content-sha256: UNSIGNED-PAYLOAD' "${url}/cnpg-backups?list-type=2")"
 [[ "${other}" == 403 ]] && echo "  isolation: the tfstate key is refused on cnpg-backups (403)" \
   || { echo "  isolation: tfstate key got HTTP ${other} on cnpg-backups (expected 403)" >&2; exit 1; }
+
+# Garage UI: TLS, a login wall, and a working login (it holds the admin token)
+ui="https://${S3_NAME}:3909"
+ui_curl() { curl -s --resolve "${S3_NAME}:3909:${HOST_IP}" --cacert "${ROOT}/k8s/platform/step-ca/config/root_ca.crt" "$@"; }
+for _ in $(seq 1 20); do [[ "$(ui_curl -o /dev/null -w '%{http_code}' "${ui}/api/v1/health")" == 200 ]] && break; sleep 2; done
+anon="$(ui_curl -o /dev/null -w '%{http_code}' "${ui}/api/v1/buckets")"
+[[ "${anon}" == 401 ]] && echo "  ${ui}: TLS verifies, the API refuses requests without login (401)" \
+  || { echo "  ${ui}: /api/v1/buckets without login gave HTTP ${anon} (expected 401)" >&2; exit 1; }
+login="$(ui_curl -X POST -H 'Content-Type: application/json' -c "${TMP}/ui-cookies" \
+  --data "$(python3 -c 'import json,sys; print(json.dumps({"username": "admin", "password": sys.argv[1]}))' "${garage_ui_admin_password}")" \
+  "${ui}/auth/login")"
+token="$(python3 -c 'import json,sys
+try: d = json.loads(sys.argv[1])
+except ValueError: d = {}
+print(d.get("token") or d.get("access_token") or (d.get("data") or {}).get("token") or "")' "${login}")"
+auth=(-b "${TMP}/ui-cookies"); [[ -n "${token}" ]] && auth+=(-H "Authorization: Bearer ${token}")
+buckets="$(ui_curl "${auth[@]}" "${ui}/api/v1/buckets")"
+if grep -q tfstate <<<"${buckets}"; then
+  echo "  ${ui}: admin login works and lists the buckets (make garage-ui-password)"
+else
+  echo "  ${ui}: login or bucket list failed: login=$(head -c 200 <<<"${login}") buckets=$(head -c 200 <<<"${buckets}")" >&2; exit 1
+fi
 
 if [[ "${TARGET}" != local ]]; then
   resolved="$(getent ahostsv4 "${S3_NAME}" | awk 'NR==1{print $1}')"

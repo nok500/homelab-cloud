@@ -46,4 +46,5 @@ Data doesn't survive a rebuild (decided, ADR 0011).
 | `ContinuousArchiving` False | `kubectl -n databases logs <instance> -c plugin-barman-cloud`. DNS (`s3.lab.macpro` from a pod, `make verify` section 2), the `garage-s3` Secret (ExternalSecret synced?), Garage up (`make verify` section 8) |
 | "Expected empty archive" | The prefix still holds WAL from an earlier cluster with the same name: `scripts/garage-wipe.sh cnpg-backups lab/<cluster>/` (data loss for that cluster's backups) |
 | Backup stuck in `running` | Plugin logs: `kubectl -n cnpg-system logs deploy/cnpg-barman-plugin-plugin-barman-cloud` |
+| No pods, `cnpg.io/hibernation=True`, the databases app `Suspended` | Hibernated by `make shutdown` (its first step) and never woken, e.g. after an interrupted shutdown or a `make up` instead of `make start`: `kubectl -n databases annotate cluster --all cnpg.io/hibernation-` |
 | Pod Pending | Both workers are needed (required anti-affinity); check node capacity in the TUI's NODES box |

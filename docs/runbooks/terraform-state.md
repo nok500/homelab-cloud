@@ -10,6 +10,7 @@ objects `host/terraform.tfstate` and `talos/terraform.tfstate`.
 | Run Terraform | Always through the Makefile (`make up/plan/destroy`) or `scripts/tf.sh <host\|talos> <args>`. Plain `terraform` works for reads, but skips the lock and the history |
 | Deploy, upgrade, renew the S3 cert | `make garage` (idempotent; reissues the certificate with under 30 days left; restarts the containers only when their config changed) |
 | Check | `make verify` section 8, or `ssh macpro 'cd homelab-garage && docker compose ps'` |
+| Garage UI | **https://s3.lab.macpro:3909**, user `admin`, password from `make garage-ui-password`. Buckets, keys, objects, layout. It acts with the admin token, so it can delete `tfstate`: the state snapshots on voodoo are the way back |
 | Garage CLI | `ssh macpro 'cd homelab-garage && docker compose exec garage /garage status'` (also `bucket list`, `key list`, `layout show`) |
 | Logs | `ssh macpro 'cd homelab-garage && docker compose logs --tail 50'`, or dozzle on the host (port 1001) |
 | List state snapshots | `make state-history` |

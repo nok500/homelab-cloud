@@ -27,7 +27,7 @@ flowchart LR
   end
   subgraph host["Mac Pro: KVM/libvirt (the 'region')"]
     opn[OPNsense VM 192.168.8.115<br/>router · NAT · firewall<br/>Unbound DNS · NTP · DHCP]
-    garage[(Garage S3 + Caddy TLS<br/>s3.lab.macpro:3900 · Docker<br/>Terraform state · backups)]
+    garage[(Garage S3 + Caddy TLS<br/>s3.lab.macpro:3900 · UI :3909<br/>Terraform state · backups)]
     subgraph pub["public subnet 10.10.0.0/24"]
       pubnote[reserved]
     end
@@ -83,6 +83,7 @@ make hooks    # install pinned tools + git hooks
 make lint     # pre-commit on all files
 make temps    # host CPU temperatures
 make garage   # Garage S3 on the host (Terraform state, backups): deploy/converge, no sudo
+make garage-ui-password  # login for the Garage UI, https://s3.lab.macpro:3909 (user admin)
 make up       # build the lab: VPC + OPNsense, Talos cluster, Cilium, Argo CD (~15 min), shown in the TUI
 make tui      # lab monitor: status, host CPU/RAM/temp, VMs, pods, nodes, Talos dashboard
 make route    # sudo: route 10.10.0.0/16 via OPNsense (make up/start add it when missing)

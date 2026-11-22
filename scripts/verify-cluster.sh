@@ -10,7 +10,8 @@
 #   7. Secrets: OpenBao initialized + unsealed, the ClusterSecretStore is valid, every ExternalSecret synced,
 #      and the OpenBao UI answers on https://bao.lab.macpro.
 #   8. Terraform state: Garage on the Mac Pro host is up, s3.lab.macpro resolves to it, its TLS verifies and has
-#      more than 30 days left, and both stacks' state objects are in the tfstate bucket.
+#      more than 30 days left, both stacks' state objects are in the tfstate bucket, and the Garage UI
+#      answers behind its login.
 #   9. Databases: CNPG operator + Barman Cloud plugin up, pg-demo healthy with 2 instances, WAL archiving to
 #      Garage works and a base backup completed. The full restore test is make db-restore-test.
 # Waits (bounded) for things that converge after bootstrap, so it can run straight after `make up`.
@@ -197,6 +198,8 @@ state_objects() {
     | grep -o '<Key>[^<]*</Key>' | grep -c -e host/terraform.tfstate -e talos/terraform.tfstate | grep -qx 2
 }
 check "tfstate bucket holds host + talos state (TLS verified against the lab root)" state_objects
+ui_wall() { [[ "$(curl -s -m 10 -o /dev/null -w '%{http_code}' --cacert "${ROOT_CA}" --resolve "${S3}:3909:${S3_IP}" "https://${S3}:3909/api/v1/buckets")" == 401 ]]; }
+check "Garage UI https://${S3}:3909 up behind its login (API without login: 401)" ui_wall
 
 echo "9. Databases (CloudNativePG, backups to Garage)"
 check "CNPG operator + Barman Cloud plugin ready" sh -c \
