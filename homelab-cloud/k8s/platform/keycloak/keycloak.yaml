@@ -1,0 +1,71 @@
+---
+# Keycloak 26.8.2: the lab's IAM Identity Center (ADR 0012), run by the Keycloak Operator.
+# One instance: a restart means a minute without SSO, and Argo CD's local admin stays as break-glass.
+# Its state lives in keycloak-db (CNPG in `databases`); the realm itself is Terraform (terraform/identity).
+apiVersion: k8s.keycloak.org/v2beta1
+kind: Keycloak
+metadata:
+  name: keycloak
+  namespace: keycloak
+spec:
+  instances: 1
+  image: quay.io/keycloak/keycloak:26.8.2@sha256:7e66a96e4739239070aeaf72e4c5decf0f7f682cfc725b9f7ea2b336eaba38b3
+  db:
+    vendor: postgres
+    host: keycloak-db-rw.databases.svc.cluster.local   # CNPG's read-write service: always the primary
+    port: 5432
+    database: keycloak
+    usernameSecret: {name: keycloak-db, key: username}
+    passwordSecret: {name: keycloak-db, key: password}
+  # TLS ends at the Gateway (*.lab.macpro from step-ca, ADR 0007); plain HTTP inside the cluster
+  http:
+    httpEnabled: true
+    httpPort: 8080
+  hostname:
+    hostname: https://sso.lab.macpro   # full URL: issuer and redirects always use it, whatever the request said
+    strict: true
+  proxy:
+    headers: xforwarded   # Cilium's Envoy sets X-Forwarded-For / -Proto
+  ingress:
+    enabled: false        # the operator's Ingress; the Gateway API route is httproute.yaml
+  bootstrapAdmin:
+    user:
+      secret: keycloak-bootstrap-admin   # master-realm admin for terraform/identity (seeded, not random)
+  resources:
+    requests: {cpu: 100m, memory: 640Mi}
+    limits: {memory: 1Gi}   # Keycloak sizes its heap at 70 % of this
+---
+# DB login: the same password CNPG gave the `keycloak` role (OpenBao secret/keycloak/db)
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: keycloak-db
+  namespace: keycloak
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: openbao
+  target:
+    name: keycloak-db
+  dataFrom:
+    - extract:
+        key: keycloak/db
+---
+# Master-realm bootstrap admin (OpenBao secret/keycloak/bootstrap-admin). Keycloak only uses it while the
+# master realm has no admin yet, i.e. on the first start against an empty database.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: keycloak-bootstrap-admin
+  namespace: keycloak
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: openbao
+  target:
+    name: keycloak-bootstrap-admin
+  dataFrom:
+    - extract:
+        key: keycloak/bootstrap-admin

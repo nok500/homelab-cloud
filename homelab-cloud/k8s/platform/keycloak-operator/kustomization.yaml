@@ -1,0 +1,34 @@
+---
+# Keycloak Operator 26.8.2 (ADR 0012): the official manifests from keycloak/keycloak-k8s-resources at the
+# release tag, by URL. The Keycloak CRD alone is ~520 KB, over the repo's 512 KB file limit, so it isn't
+# vendored. The operator watches only its own namespace (keycloak), where the Keycloak CR lives too.
+# Images are pinned by digest: quay re-pushes the 26.8.2 tag for base-image fixes (four builds so far).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: keycloak
+resources:
+  - https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/26.8.2/kubernetes/keycloaks.k8s.keycloak.org-v1.yml
+  - https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/26.8.2/kubernetes/keycloakrealmimports.k8s.keycloak.org-v1.yml
+  - https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/26.8.2/kubernetes/kubernetes.yml
+patches:
+  - target:
+      kind: Deployment
+      name: keycloak-operator
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: keycloak-operator
+      spec:
+        template:
+          spec:
+            containers:
+              - name: keycloak-operator
+                image: quay.io/keycloak/keycloak-operator:26.8.2@sha256:f9b9a2be5db09d988c3706a6685763de1a3ac2b2f61315b21539cb99d0594efb
+                imagePullPolicy: IfNotPresent   # upstream says Always; pointless with a digest
+                env:
+                  # the Keycloak image the operator deploys when a CR doesn't set spec.image
+                  - name: kc.operator.keycloak.image
+                    value: quay.io/keycloak/keycloak:26.8.2@sha256:7e66a96e4739239070aeaf72e4c5decf0f7f682cfc725b9f7ea2b336eaba38b3
+                  - name: RELATED_IMAGE_KEYCLOAK
+                    value: quay.io/keycloak/keycloak:26.8.2@sha256:7e66a96e4739239070aeaf72e4c5decf0f7f682cfc725b9f7ea2b336eaba38b3

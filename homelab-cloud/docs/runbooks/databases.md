@@ -22,6 +22,11 @@ kubectl -n databases exec -it "$(kubectl -n databases get cluster pg-demo -o jso
 Apps use the services `pg-demo-rw` (primary), `pg-demo-ro` (replicas) and `pg-demo-r` (any) in `databases`, with
 the generated Secret `pg-demo-app` (user, password, URI).
 
+| Cluster | Used by | Credentials |
+|---|---|---|
+| `pg-demo` | backup/restore test only | CNPG-generated `pg-demo-app` |
+| `keycloak-db` | Keycloak (`keycloak-db-rw.databases.svc.cluster.local`) | seeded: OpenBao `secret/databases/keycloak-db` = `secret/keycloak/db` ([ADR 0012](../decisions/0012-identity-keycloak.md)) |
+
 ## Back up and restore
 
 | Job | How |

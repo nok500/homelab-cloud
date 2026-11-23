@@ -7,6 +7,7 @@ resources:
   - garage-s3.yaml
   - object-store.yaml
   - pg-demo.yaml
+  - keycloak-db.yaml   # Keycloak (ADR 0012)
 secretGenerator:
   # the lab root CA (written by scripts/pki-render.py): s3.lab.macpro's certificate chains to it
   - name: garage-ca

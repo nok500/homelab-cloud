@@ -135,4 +135,45 @@ server:
             }
           }
         }
+        # Keycloak (ADR 0012). The DB password appears twice, once per consuming namespace (paths are per
+        # namespace): CNPG creates the role with it, Keycloak logs in with it.
+        request "keycloak-db-owner" {
+          operation = "update"
+          path      = "secret/data/databases/keycloak-db"
+          data = {
+            data = {
+              username = "keycloak"
+              password = { eval_type = "string", eval_source = "file", path = "/openbao/seed/keycloak-db-password" }
+            }
+          }
+        }
+        request "keycloak-db-client" {
+          operation = "update"
+          path      = "secret/data/keycloak/db"
+          data = {
+            data = {
+              username = "keycloak"
+              password = { eval_type = "string", eval_source = "file", path = "/openbao/seed/keycloak-db-password" }
+            }
+          }
+        }
+        request "keycloak-admin" {
+          operation = "update"
+          path      = "secret/data/keycloak/bootstrap-admin"
+          data = {
+            data = {
+              username = "admin"
+              password = { eval_type = "string", eval_source = "file", path = "/openbao/seed/keycloak-admin-password" }
+            }
+          }
+        }
+        request "argocd-oidc" {
+          operation = "update"
+          path      = "secret/data/argocd/oidc-keycloak"
+          data = {
+            data = {
+              clientSecret = { eval_type = "string", eval_source = "file", path = "/openbao/seed/keycloak-argocd-client-secret" }
+            }
+          }
+        }
       }

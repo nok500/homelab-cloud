@@ -5,13 +5,13 @@
 #   history  after a successful command that can change state, an age-encrypted copy of the state goes to
 #            .cache/state-history/<stack>/ (the last 20, only when it changed). Garage has no object versioning.
 # Read-only commands (output, show, validate, fmt, version, providers, graph) skip both.
-#   usage: scripts/tf.sh <host|talos> <terraform args...>
+#   usage: scripts/tf.sh <host|talos|identity> <terraform args...>
 #   restore: docs/runbooks/terraform-state.md
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export PATH="${ROOT}/.tools/bin:${PATH}"
-stack="${1:?usage: tf.sh <host|talos> <terraform args...>}"; shift
+stack="${1:?usage: tf.sh <host|talos|identity> <terraform args...>}"; shift
 dir="${TF_STACK_DIR:-${ROOT}/terraform/${stack}}"   # TF_STACK_DIR: tests only
 cmd="${1:-}"
 HISTORY="${ROOT}/.cache/state-history/${stack}"

@@ -50,6 +50,6 @@ same name and certificate as S3, a second port, so no DNS change.
 - Tested locally before deploying: the API answers 401 without a login, a wrong password and token login get 401,
   and the admin login lists the buckets. `make garage` and `make verify` (section 8) repeat the login-wall check.
 - Its session-signing key is generated on first start into the `ui-data` volume and survives restarts.
-- Moves to Keycloak OIDC in Phase 3 milestone 6 (the UI supports it).
+- Moves to Keycloak OIDC later (the UI supports it); deferred from milestone 6, which covers Argo CD ([ADR 0012](0012-identity-keycloak.md)).
 - `make garage` now restarts only the container whose own files changed. Adding the UI restarted Garage too:
   a few seconds without S3, which CNPG's archiving retries through.

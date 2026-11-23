@@ -54,7 +54,7 @@ knows only the DHCP host names, so `s3.lab.macpro` and `argocd.lab.macpro` came 
 - Unbound's rebind protection doesn't strip the private answers: `lab.macpro` is already a `private-domain`.
   Tested live with `unbound-control forward_add` before changing the template (and reverted).
 - `make verify` section 2 checks it from a pod: `argocd.lab.macpro`, `s3.lab.macpro` and `talos-cp-1.lab.macpro`.
-- Needed by: CNPG → `s3.lab.macpro` (milestone 5), Argo CD → `keycloak.lab.macpro` for OIDC (milestone 6).
+- Needed by: CNPG → `s3.lab.macpro` (milestone 5), Argo CD → `sso.lab.macpro` for OIDC (milestone 6, [ADR 0012](0012-identity-keycloak.md)).
 - **No `lab.macpro` search domain** (found on the first rebuild with this change): DHCP handed out
   `search lab.macpro`, and pods search with `ndots:5`, so every short external name was tried as
   `<name>.lab.macpro` first. With the wildcard answering, `github.com` resolved to the Gateway and Argo CD

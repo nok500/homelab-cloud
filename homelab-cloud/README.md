@@ -14,7 +14,7 @@ modules tested against the AWS Emulator.
 > External Secrets, self-initialized and seeded on every rebuild ([ADR 0008](docs/decisions/0008-secrets-openbao.md)).
 > Terraform state in Garage S3 on the Mac Pro host, outside the lab, over TLS from the lab CA
 > ([ADR 0010](docs/decisions/0010-garage-host-s3.md)); PostgreSQL via CloudNativePG with continuous backups to Garage
-> and a tested point-in-time restore ([ADR 0011](docs/decisions/0011-databases-cnpg.md)).
+> and a tested point-in-time restore ([ADR 0011](docs/decisions/0011-databases-cnpg.md)); single sign-on through Keycloak at https://sso.lab.macpro, Argo CD logs in through it, the realm managed as Terraform ([ADR 0012](docs/decisions/0012-identity-keycloak.md)).
 > Argo CD UI: https://argocd.lab.macpro/ ([access runbook](docs/runbooks/cluster-access.md)).
 
 ## Architecture
@@ -42,6 +42,7 @@ flowchart LR
       w2[talos-worker-2 .22]
       argo[Argo CD<br/>app-of-apps]
       db[(CloudNativePG<br/>databases ns)]
+      kc[Keycloak SSO<br/>sso.lab.macpro]
     end
     subgraph data["data subnet 10.10.2.0/24"]
       datanote[reserved]
@@ -65,6 +66,9 @@ flowchart LR
   style datanote stroke-dasharray: 5 5
   db -- "base backups + WAL (S3, TLS)" --> garage
   bao -. "S3 key" .-> db
+  argo -. "OIDC login" .-> kc
+  kc -- "keycloak-db" --> db
+  ws -- "realm (Terraform)" --> kc
 ```
 
 | AWS | Here |
@@ -90,6 +94,8 @@ make up       # build the lab: VPC + OPNsense, Talos cluster, Cilium, Argo CD (~
 make tui      # lab monitor: status, host CPU/RAM/temp, VMs, pods, nodes, Talos dashboard
 make route    # sudo: route 10.10.0.0/16 via OPNsense (make up/start add it when missing)
 make db-restore-test  # point-in-time restore of the demo database from Garage, checked row by row
+make identity # Keycloak realm, users, groups, OIDC clients (terraform/identity; make up runs it)
+make sso-password     # password of labadmin, the SSO user (Argo CD: LOG IN VIA KEYCLOAK)
 make verify   # cluster acceptance checks (verify-host: Phase 1, needs the test VM)
 make shutdown # safe stop of all VMs (make poweroff: also the Mac Pro; make start: back up)
 make destroy  # tear it down
@@ -103,6 +109,7 @@ Runbooks: [docs/runbooks/](docs/runbooks/) (the monitor: [monitoring.md](docs/ru
 ```
 terraform/host   libvirt networks, pools, VMs        k8s/bootstrap  Argo CD + root app
 terraform/talos  Talos machine configs / bootstrap   k8s/platform   managed-service equivalents
+terraform/identity  Keycloak realm, users, clients
 terraform/aws    real-AWS-shaped modules             k8s/security   policy, runtime, posture
 apps/            sample service(s)                   .forgejo/      CI pipelines
 ```

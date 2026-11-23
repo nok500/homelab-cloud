@@ -20,7 +20,7 @@
 
 `make destroy` empties `s3://cnpg-backups/lab/` (`scripts/garage-wipe.sh`), so each `make up` starts with empty
 databases and an empty WAL archive. Same lifecycle as OpenBao: what matters long-term comes from code (Keycloak's
-realm import, milestone 6). It also avoids CNPG's refusal to archive into a path that already holds another
+realm is Terraform, [ADR 0012](0012-identity-keycloak.md)). It also avoids CNPG's refusal to archive into a path that already holds another
 cluster's WAL.
 
 Backups and point-in-time restore protect data **while the lab runs**: node loss, a bad migration, a dropped table.

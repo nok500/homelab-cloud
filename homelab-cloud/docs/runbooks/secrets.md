@@ -28,6 +28,7 @@ kubectl -n openbao logs openbao-0 | grep -i "initialize"        # self-init erro
 |---|---|
 | Let a new namespace read secrets | Add it to `conditions.namespaces` in `k8s/platform/secret-store/cluster-secret-store.yaml`; keep its paths under `secret/<namespace>` |
 | Add a secret for an app | As admin, write `secret/<namespace>/<name>`, then add an `ExternalSecret` with `remoteRef.key: <namespace>/<name>`. If it must survive rebuilds, seed it: add it to `scripts/openbao-seed.sh` and an `initialize "seed"` request in `k8s/platform/openbao/values.yaml` |
+| New seed value, lab already running | Self-init only runs on empty storage, so a running OpenBao never sees it. After `make openbao-seed`, also write the same value to its path as `admin` (UI, CLI or the HTTP API), or rebuild. Done this way for Keycloak's four values on 2026-11-23 ([ADR 0012](../decisions/0012-identity-keycloak.md)) |
 | Change a seed value | `make openbao-seed` (keeps the unseal key and admin password), commit, push, `make secrets`. Self-init only reads it on empty storage, so a running OpenBao needs the value written by hand, or a rebuild |
 | Force a re-sync | `kubectl -n <ns> annotate externalsecret <name> force-sync=$(date +%s) --overwrite` |
 | OpenBao sealed after a restart | `kubectl -n openbao logs openbao-0`: the static seal reads `/openbao/seed/unseal.key`, so check that the `openbao-seed` Secret exists (`make secrets`) |

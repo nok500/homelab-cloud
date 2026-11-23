@@ -36,6 +36,8 @@ temps: ## Show lab host CPU temperatures and fan speed
 # scripts/tf.sh: local lock + encrypted state history around terraform (state lives in Garage, ADR 0010)
 TF_HOST := scripts/tf.sh host
 TF_TALOS := scripts/tf.sh talos
+# scripts/identity.sh: tf.sh plus the seeded Keycloak credentials as TF_VAR_* (ADR 0012)
+TF_IDENTITY := scripts/identity.sh
 # AUTO_APPROVE=1 make up|destroy skips the interactive confirmation
 TF_APPROVE := $(if $(AUTO_APPROVE),-auto-approve,)
 LAB_CIDR := 10.10.0.0/16
@@ -65,6 +67,7 @@ images: ## Download + verify VM base images into .cache/images
 init:
 	$(TF_HOST) init -input=false
 	$(TF_TALOS) init -input=false
+	$(TF_IDENTITY) init -input=false
 
 .PHONY: plan
 plan: images init ## Terraform plan for the whole lab
@@ -78,7 +81,7 @@ up: ## Build everything (VPC, OPNsense, Talos VMs, cluster) and watch it in the 
 	@if [[ -t 0 && -t 1 && -z "$${NO_TUI:-}" ]] && command -v tmux >/dev/null; then scripts/tui.sh --up; \
 	else $(MAKE) --no-print-directory build; fi
 
-build: host route-ensure cluster ## The build behind make up, without the TUI
+build: host route-ensure cluster identity ## The build behind make up, without the TUI
 
 .PHONY: route-ensure
 route-ensure: # make up/start: add the VPC route only if it's missing (sudo asks for the password then)
@@ -101,8 +104,17 @@ cluster: init ## Talos config + bootstrap (terraform/talos), then Cilium + Argo 
 	$(TF_TALOS) apply -input=false $(TF_APPROVE)
 	scripts/bootstrap-cluster.sh
 
+.PHONY: identity sso-password
+identity: ## Keycloak realm, users, groups, OIDC clients (terraform/identity; Keycloak must be up)
+	$(TF_IDENTITY) init -input=false
+	$(TF_IDENTITY) apply -input=false $(TF_APPROVE)
+
+sso-password: ## Print the password of `labadmin`, the lab's SSO user (https://sso.lab.macpro, Argo CD)
+	@SOPS_AGE_KEY_FILE=.cache/age/key.txt .tools/bin/sops --decrypt --extract '["data"]["keycloak-labadmin-password"]' k8s/platform/openbao/seed.enc.yaml | base64 -d; echo
+
 .PHONY: down destroy
 down destroy: init ## Tear the lab down completely (cluster state first, then the VMs)
+	$(TF_IDENTITY) forget   # the realm dies with the cluster: nothing to destroy, just forget it
 	$(TF_TALOS) destroy -input=false $(TF_APPROVE)
 	$(TF_HOST) destroy -input=false $(TF_APPROVE)
 	rm -f .cache/cluster/kubeconfig .cache/cluster/talosconfig

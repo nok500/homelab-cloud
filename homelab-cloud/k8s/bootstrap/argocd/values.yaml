@@ -25,8 +25,54 @@ configs:
         end
       end
       return hs
+    # Keycloak CR (keycloak-operator, ADR 0012): Healthy only once the operator reports Ready, so make up waits
+    # for a Keycloak that answers before terraform/identity configures it.
+    resource.customizations.health.k8s.keycloak.org_Keycloak: |
+      hs = {status = "Progressing", message = "Waiting for Keycloak to be Ready"}
+      if obj.status ~= nil and obj.status.conditions ~= nil then
+        for _, c in ipairs(obj.status.conditions) do
+          if c.type == "Ready" and c.status == "True" then
+            hs.status = "Healthy"; hs.message = "Ready"
+          elseif c.type == "HasErrors" and c.status == "True" then
+            hs.status = "Degraded"; hs.message = c.message
+          end
+        end
+      end
+      return hs
 
-# Sized for 1 GiB nodes: no Dex (SSO comes with Keycloak in Phase 3), no notifications.
+    # SSO through Keycloak (ADR 0012): realm `lab`, client `argocd` (both from terraform/identity). The client
+    # secret comes from OpenBao via the argocd-oidc-keycloak Secret. rootCA: Argo CD has to trust the lab CA
+    # to fetch the issuer's discovery document over https; scripts/pki-render.py keeps the block in sync.
+    oidc.config: |
+      name: Keycloak
+      issuer: https://sso.lab.macpro/realms/lab
+      clientID: argocd
+      clientSecret: $argocd-oidc-keycloak:clientSecret
+      requestedScopes: [openid, profile, email, groups]
+      rootCA: |
+        # BEGIN lab-root-ca (written by scripts/pki-render.py)
+        -----BEGIN CERTIFICATE-----
+        MIIBsTCCAVigAwIBAgIQQPc0VioSENUqHkMUfCUxLzAKBggqhkjOPQQDAjAgMR4w
+        HAYDVQQDExVob21lbGFiLWNsb3VkIFJvb3QgQ0EwHhcNMjYxMTIwMTQzNzMyWhcN
+        MzYxMTE3MTQzNzMyWjAgMR4wHAYDVQQDExVob21lbGFiLWNsb3VkIFJvb3QgQ0Ew
+        WTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAARl6T5S1dfc3hWJ5AniywpofQsD0CSN
+        CbPP+Rqcb93iTjdjfGWe5afMvvNc1qXVLrd68pu1i3j1rDC7iu92dukPo3QwcjAO
+        BgNVHQ8BAf8EBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBATAdBgNVHQ4EFgQUWK7Z
+        xDRZKfAcWxFxboDIzY6xnmQwLQYDVR0eAQH/BCMwIaAfMAyCCmxhYi5tYWNwcm8w
+        D4INY2x1c3Rlci5sb2NhbDAKBggqhkjOPQQDAgNHADBEAiBprIcvvrtU/XkoxPvA
+        5LMY6Y/zFD6Q9j/xT9ZnGGT4/gIgKEGy4B8l5eauQUkh8mHqkDRtfSYCMRAPa3w6
+        +kjlVLk=
+        -----END CERTIFICATE-----
+        # END lab-root-ca
+
+  rbac:
+    # Keycloak group -> Argo CD role. No default role: a valid Keycloak login outside argocd-admins sees nothing.
+    # The local `admin` stays as break-glass (initial admin secret).
+    policy.csv: |
+      g, argocd-admins, role:admin
+    scopes: "[groups]"
+
+# No Dex (Keycloak is the IdP, Argo CD talks OIDC to it directly), no notifications.
 dex:
   enabled: false
 notifications:

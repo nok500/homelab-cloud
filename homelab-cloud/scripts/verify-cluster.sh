@@ -14,6 +14,8 @@
 #      answers behind its login.
 #   9. Databases: CNPG operator + Barman Cloud plugin up, pg-demo healthy with 2 instances, WAL archiving to
 #      Garage works and a base backup completed. The full restore test is make db-restore-test.
+#  10. Identity: Keycloak operator + instance Ready, keycloak-db healthy and archiving, the lab realm's OIDC
+#      discovery served on https://sso.lab.macpro (lab CA), and a real Argo CD SSO login as labadmin.
 # Waits (bounded) for things that converge after bootstrap, so it can run straight after `make up`.
 set -uo pipefail
 
@@ -210,6 +212,27 @@ archiving() { kubectl -n databases get cluster pg-demo -o jsonpath='{.status.con
 check "pg-demo WAL archiving to Garage works (ContinuousArchiving)" retry 30 10 archiving
 base_backup() { kubectl -n databases get backups -o jsonpath='{range .items[*]}{.spec.cluster.name} {.status.phase}{"\n"}{end}' | grep -qx 'pg-demo completed'; }
 check "pg-demo has a completed base backup in Garage" retry 30 10 base_backup
+
+echo "10. Identity (Keycloak, SSO for Argo CD)"
+check "Keycloak operator ready" kubectl -n keycloak rollout status deploy/keycloak-operator --timeout=120s
+kc_ready() { kubectl -n keycloak get keycloak keycloak -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -qx True; }
+check "Keycloak instance Ready" retry 30 10 kc_ready
+kcdb_ok() {
+  retry 30 10 sh -c "kubectl -n databases get cluster keycloak-db -o jsonpath='{.status.phase} {.status.readyInstances}' | grep -qx 'Cluster in healthy state 2'" &&
+    retry 30 10 sh -c "kubectl -n databases get cluster keycloak-db -o jsonpath='{.status.conditions[?(@.type==\"ContinuousArchiving\")].status}' | grep -qx True"
+}
+check "keycloak-db healthy, 2 instances, WAL archiving to Garage" kcdb_ok
+discovery() {
+  curl -fsS -m 10 --cacert "${ROOT_CA}" https://sso.lab.macpro/realms/lab/.well-known/openid-configuration \
+    | python3 -c 'import json,sys; sys.exit(json.load(sys.stdin)["issuer"] != "https://sso.lab.macpro/realms/lab")'
+}
+check "realm lab: OIDC discovery on https://sso.lab.macpro, issuer correct, TLS from the lab CA" retry 12 10 discovery
+sso_login() {
+  SSO_USER=labadmin SSO_PASSWORD="$(SOPS_AGE_KEY_FILE="${ROOT}/.cache/age/key.txt" sops --decrypt \
+    --extract '["data"]["keycloak-labadmin-password"]' "${ROOT}/k8s/platform/openbao/seed.enc.yaml" | base64 -d)" \
+    "${ROOT}/scripts/sso-login-test.py" "${ROOT_CA}"
+}
+if out="$(retry 6 10 sso_login 2>&1)"; then ok "Argo CD SSO: ${out##*$'\n'}"; else bad "Argo CD SSO login as labadmin: ${out##*$'\n'}"; fi
 
 echo
 printf '%d passed, %d failed\n' "${pass}" "${fail}"

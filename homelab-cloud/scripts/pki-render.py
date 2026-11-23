@@ -17,6 +17,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 CA = ROOT / ".cache" / "ca"
 OUT = ROOT / "k8s" / "platform" / "step-ca" / "config"
 DB_CA = ROOT / "k8s" / "platform" / "databases" / "lab-root-ca.crt"
+# Argo CD takes the CA for its OIDC issuer only inline (oidc.config rootCA): kept between these markers
+ARGOCD_VALUES = ROOT / "k8s" / "bootstrap" / "argocd" / "values.yaml"
+MARK_BEGIN, MARK_END = "# BEGIN lab-root-ca (written by scripts/pki-render.py)", "# END lab-root-ca"
 ISSUER = ROOT / "k8s" / "platform" / "certificates" / "step-cluster-issuer.yaml"
 NS = "step-ca"
 SVC = f"step-ca.{NS}.svc.cluster.local"
@@ -98,6 +101,14 @@ def main() -> int:
     # for Garage (s3.lab.macpro, signed by the lab CA; ADR 0010)
     DB_CA.parent.mkdir(parents=True, exist_ok=True)
     DB_CA.write_text(rd("root_ca.crt"))
+    # ...and for Argo CD's OIDC issuer (sso.lab.macpro, ADR 0012): replace the PEM between the markers,
+    # keeping their indentation
+    lines = ARGOCD_VALUES.read_text().splitlines(keepends=True)
+    b = next(i for i, l in enumerate(lines) if l.strip() == MARK_BEGIN)
+    e = next(i for i, l in enumerate(lines) if l.strip() == MARK_END)
+    indent = lines[b][: len(lines[b]) - len(lines[b].lstrip())]
+    pem = [indent + l + "\n" for l in rd("root_ca.crt").strip().splitlines()]
+    ARGOCD_VALUES.write_text("".join(lines[: b + 1] + pem + lines[e:]))
     (OUT / "kustomization.yaml").write_text(
         "---\n" + GENERATED + dump(
             {

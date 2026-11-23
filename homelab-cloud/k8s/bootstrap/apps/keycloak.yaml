@@ -1,0 +1,28 @@
+---
+# Keycloak (k8s/platform/keycloak, ADR 0012): after databases (wave 3), whose keycloak-db it uses.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:nok500/lab.git
+    targetRevision: main
+    path: homelab-cloud/k8s/platform/keycloak
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: keycloak
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true   # CRDs arrive with keycloak-operator / external-secrets
+    retry:
+      limit: 10
+      backoff: {duration: 10s, factor: 2, maxDuration: 2m}

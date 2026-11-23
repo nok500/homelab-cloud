@@ -4,6 +4,8 @@
 #   admin-password   OpenBao `admin` userpass login             (generated once, kept across re-runs)
 #   step-ca-*        seed values copied in by self-initialization (from .cache/ca)
 #   databases-s3-*   Garage key for CNPG backups (from host/garage/secrets.enc.yaml)
+#   keycloak-*       Keycloak DB password, bootstrap admin, the lab user's password, the Argo CD OIDC client
+#                    secret (generated once, kept across re-runs; ADR 0012)
 # OpenBao reads these files only on first start (self-init), then everything comes from OpenBao via
 # External Secrets. Re-run after adding a seed value, then commit + push.
 set -euo pipefail
@@ -47,6 +49,10 @@ data = {
     "databases-s3-access-key-id": b64(garage["cnpg-backups_key_id"].encode()),
     "databases-s3-secret-access-key": b64(garage["cnpg-backups_secret_key"].encode()),
 }
+# Keycloak (ADR 0012): generated once, then stable. terraform/identity reads them too (make identity).
+for key in ("keycloak-db-password", "keycloak-admin-password", "keycloak-labadmin-password",
+            "keycloak-argocd-client-secret"):
+    data[key] = old.get(key) or b64(secrets.token_urlsafe(32).encode())
 print("---")
 print(yaml.dump({"apiVersion": "v1", "kind": "Secret",
                  "metadata": {"name": "openbao-seed", "namespace": "openbao"},
