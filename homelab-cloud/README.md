@@ -6,7 +6,7 @@ A production-shaped **AWS-like platform** built entirely as code on one Mac Pro 
 VPC → "EKS" → managed-service equivalents → GitOps CI/CD → DevSecOps tooling, plus AWS-provider Terraform
 modules tested against the AWS Emulator.
 
-> Status: **Phase 4 in progress** (CI/CD and observability). Phase 4 so far: metrics, logs and alerts: Prometheus +
+> Status: **Phase 4 in progress** (CI/CD and observability). Milestone 1 done (2026-11-23, `make verify` 67/67): metrics, logs and alerts: Prometheus +
 > Grafana (Keycloak SSO) at https://grafana.lab.macpro, Loki on Garage, alerts to ntfy at https://ntfy.lab.macpro
 > ([ADR 0014](docs/decisions/0014-observability.md)). Done: Phase 1 VPC + OPNsense
 > ([ADR 0003](docs/decisions/0003-vpc-networking.md)), Phase 2 "EKS": Talos v1.14.6 + Cilium 1.20.5 + Argo CD 3.6.2

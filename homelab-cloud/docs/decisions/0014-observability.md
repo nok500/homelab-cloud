@@ -62,10 +62,17 @@ with the VMs.
   support restart operation"). A machine-config change to etcd's arguments takes effect at the control plane's
   next boot. Fresh builds have it from the start; the live lab got it at its next reboot.
 - **Events missing in Loki**: they arrived, under Alloy's default `job="loki.source.kubernetes_events"`; the
-  config now sets the conventional `job_name = "integrations/kubernetes/eventhandler"`.
+  config now sets the conventional `job_name = "integrations/kubernetes/eventhandler"`. Alloy's live config reload
+  (the config-reloader sidecar) didn't apply the new `job_name`: events kept the old label until the Alloy pod
+  restarted. Fresh builds start with it.
 - **Verify's test alert never left**: `kubectl create --raw` through the API-server proxy is refused by
   Alertmanager (415, content type). Verify now uses `amtool` in the Alertmanager pod; the path itself worked
   (Alertmanager → ntfy in about 40 s, its `group_wait` is 30 s).
+
+## Milestone 1 closed (2026-11-23)
+
+After the control plane's reboot (etcd's metrics listener) and an Alloy restart (events label), `make verify`
+passed 67/67 on the live lab, section 12 included.
 
 ## Verification
 

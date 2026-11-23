@@ -41,4 +41,5 @@ kubectl get csr | grep kubelet-serving            # Approved,Issued for every no
 | Grafana login loops or `invalid_client` | Client secret differs between Keycloak and Grafana: OpenBao `secret/monitoring/grafana-oidc` vs the seed, then `make identity` |
 | Grafana: "x509: certificate signed by unknown authority" on login | The `lab-root-ca` Secret (from `scripts/pki-render.py`) isn't mounted: check `kubectl -n monitoring get secret lab-root-ca` |
 | No logs in Loki | `kubectl -n monitoring logs deploy/alloy`; then Loki: `kubectl -n monitoring logs sts/loki` (S3 errors point to Garage: `make verify` section 8) |
+| Events missing in Loki, or still under `job="loki.source.kubernetes_events"` after a config change | Alloy's live reload doesn't apply every change to `loki.source.kubernetes_events` (seen with `job_name`): `kubectl -n monitoring rollout restart deploy/alloy`. Older lines keep their old labels |
 | No notifications | ntfy's log (`kubectl -n monitoring logs deploy/ntfy`): a 401/403 means the token doesn't match OpenBao `secret/monitoring/ntfy`; Alertmanager's log shows the webhook result |
