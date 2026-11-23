@@ -82,7 +82,7 @@ flowchart LR
 ```sh
 make help     # list targets
 make hooks    # install pinned tools + git hooks
-make lint     # pre-commit on all files
+make lint     # pre-commit on this lab's files
 make temps    # host CPU temperatures
 make garage   # Garage S3 on the host (Terraform state, backups): deploy/converge, no sudo
 make garage-ui-password  # login for the Garage UI, https://s3.lab.macpro:3909 (user admin)
