@@ -15,8 +15,8 @@ spec:
       helm:
         releaseName: cert-manager
         valueFiles:
-          - $values/k8s/platform/cert-manager/values.yaml
-    - repoURL: git@github.com:nok500/homelab-cloud.git
+          - $values/homelab-cloud/k8s/platform/cert-manager/values.yaml
+    - repoURL: git@github.com:nok500/lab.git
       targetRevision: main
       ref: values
   destination:

@@ -16,8 +16,8 @@ spec:
       helm:
         releaseName: cnpg
         valueFiles:
-          - $values/k8s/platform/cnpg/values.yaml
-    - repoURL: git@github.com:nok500/homelab-cloud.git
+          - $values/homelab-cloud/k8s/platform/cnpg/values.yaml
+    - repoURL: git@github.com:nok500/lab.git
       targetRevision: main
       ref: values
   destination:

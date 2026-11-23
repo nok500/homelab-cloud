@@ -3,6 +3,8 @@ SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
 export PATH := $(CURDIR)/.tools/bin:$(PATH)
+# This lab is one folder of the lab monorepo; git hooks and the pre-commit config live at the repo root.
+REPO_ROOT := $(shell git rev-parse --show-toplevel)
 LAB_HOST ?= 192.168.8.207
 export LAB_HOST
 
@@ -20,12 +22,12 @@ tools: ## Install pinned dev tools into ./.tools
 
 .PHONY: hooks
 hooks: tools ## Install git pre-commit hooks (with ./.tools/bin on their PATH)
-	pre-commit install
-	sed -i '1a export PATH="$$(git rev-parse --show-toplevel)/.tools/bin:$$PATH"' .git/hooks/pre-commit
+	cd "$(REPO_ROOT)" && pre-commit install
+	sed -i '1a export PATH="$$(git rev-parse --show-toplevel)/homelab-cloud/.tools/bin:$$PATH"' "$$(git rev-parse --git-path hooks)/pre-commit"
 
 .PHONY: lint
-lint: tools ## Run all pre-commit checks on every file
-	pre-commit run --all-files
+lint: tools ## Run all pre-commit checks on every file of this lab
+	pre-commit run --config "$(REPO_ROOT)/.pre-commit-config.yaml" --files $$(git ls-files)
 
 .PHONY: temps
 temps: ## Show lab host CPU temperatures and fan speed

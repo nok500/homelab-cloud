@@ -1,5 +1,5 @@
 ---
-# Tool binaries (tflint, gitleaks) come from ./.tools/bin - run `make tools` first.
+# Tool binaries (tflint, gitleaks) come from homelab-cloud/.tools/bin - run `make hooks` there first.
 # terraform must be on PATH (>= 1.15).
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks

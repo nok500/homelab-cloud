@@ -6,6 +6,12 @@ Everything after these steps is code. Keep this list as short as possible.
 
 Requirements: `git`, `make`, `python3`, `curl`, `terraform` ≥ 1.15, `tmux` ≥ 3.4 (the lab monitor, `make tui`), SSH key access to the lab host.
 
+This lab lives in the `homelab-cloud/` folder of the `lab` repo; run every command from that folder:
+
+```sh
+git clone git@github.com:nok500/lab.git && cd lab/homelab-cloud
+```
+
 ```sh
 make hooks   # installs pinned tflint, gitleaks and pre-commit into ./.tools, then installs the git hooks
 make lint

@@ -1,5 +1,7 @@
 # homelab-cloud
 
+> One lab of the [lab](../README.md) monorepo (`github.com/nok500/lab`). Everything here runs from this folder.
+
 A production-shaped **AWS-like platform** built entirely as code on one Mac Pro (Late 2013):
 VPC → "EKS" → managed-service equivalents → GitOps CI/CD → DevSecOps tooling, plus AWS-provider Terraform
 modules tested against the AWS Emulator.

@@ -16,14 +16,14 @@ spec:
       helm:
         releaseName: openbao
         valueFiles:
-          - $values/k8s/platform/openbao/values.yaml
-    - repoURL: git@github.com:nok500/homelab-cloud.git
+          - $values/homelab-cloud/k8s/platform/openbao/values.yaml
+    - repoURL: git@github.com:nok500/lab.git
       targetRevision: main
       ref: values
     # UI at https://bao.lab.macpro
-    - repoURL: git@github.com:nok500/homelab-cloud.git
+    - repoURL: git@github.com:nok500/lab.git
       targetRevision: main
-      path: k8s/platform/openbao/route
+      path: homelab-cloud/k8s/platform/openbao/route
   destination:
     server: https://kubernetes.default.svc
     namespace: openbao

@@ -87,3 +87,13 @@ Argo CD reads the private repo with a **read-only deploy key** (`.cache/cluster/
 on the repo under Settings → Deploy keys), loaded by `scripts/bootstrap-cluster.sh` as the
 `repo-homelab-cloud` secret. It stays a bootstrap secret: Argo CD needs it before OpenBao exists
 (ADR 0008). Every other secret comes from OpenBao, see [secrets.md](secrets.md).
+
+**Repo moved (2026-11-23):** the repo is now `nok500/lab` and every Argo CD path starts with `homelab-cloud/`.
+A cluster built before the move still has the old root Application, so after the next `make start`, run this once
+(a fresh `make up` needs nothing):
+
+```sh
+kubectl -n argocd patch secret repo-homelab-cloud --type merge \
+  -p '{"stringData":{"url":"git@github.com:nok500/lab.git"}}'
+kubectl apply -f k8s/bootstrap/root.yaml   # root re-syncs every child Application to the new paths
+```

@@ -7,9 +7,9 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: git@github.com:nok500/homelab-cloud.git
+    repoURL: git@github.com:nok500/lab.git
     targetRevision: main
-    path: k8s/platform/cilium-config
+    path: homelab-cloud/k8s/platform/cilium-config
   destination:
     server: https://kubernetes.default.svc
   syncPolicy:

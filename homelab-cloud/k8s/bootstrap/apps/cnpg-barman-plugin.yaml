@@ -16,8 +16,8 @@ spec:
       helm:
         releaseName: cnpg-barman-plugin
         valueFiles:
-          - $values/k8s/platform/cnpg-barman-plugin/values.yaml
-    - repoURL: git@github.com:nok500/homelab-cloud.git
+          - $values/homelab-cloud/k8s/platform/cnpg-barman-plugin/values.yaml
+    - repoURL: git@github.com:nok500/lab.git
       targetRevision: main
       ref: values
   destination:

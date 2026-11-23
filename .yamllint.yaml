@@ -6,7 +6,7 @@ ignore: |
   **/charts/
   # machine-written: SOPS output and generated PKI manifests (base64 bundles on one line)
   *.enc.yaml
-  k8s/platform/certificates/step-cluster-issuer.yaml
+  homelab-cloud/k8s/platform/certificates/step-cluster-issuer.yaml
 rules:
   line-length:
     max: 160

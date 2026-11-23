@@ -17,8 +17,8 @@ spec:
       helm:
         releaseName: cilium
         valueFiles:
-          - $values/k8s/platform/cilium/values.yaml
-    - repoURL: git@github.com:nok500/homelab-cloud.git
+          - $values/homelab-cloud/k8s/platform/cilium/values.yaml
+    - repoURL: git@github.com:nok500/lab.git
       targetRevision: main
       ref: values
   destination:

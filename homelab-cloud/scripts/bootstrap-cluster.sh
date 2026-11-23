@@ -9,7 +9,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export KUBECONFIG="${ROOT}/.cache/cluster/kubeconfig"   # always the lab cluster, never the caller's context
 DEPLOY_KEY="${ROOT}/.cache/cluster/argocd-deploy-key"
-REPO_URL="git@github.com:nok500/homelab-cloud.git"
+REPO_URL="git@github.com:nok500/lab.git"
 
 step() { printf '\n\033[1m>> %s\033[0m\n' "$*"; }
 # chart version = the targetRevision right after `chart: <name>` in the Application manifest

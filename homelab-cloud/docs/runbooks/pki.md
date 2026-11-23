@@ -53,7 +53,7 @@ The OpenBao unseal key and admin password live in the SOPS file in Git, so backi
 ### Restore (new workstation, or `.cache` lost)
 
 ```sh
-cd ~/projects/lab/homelab-cloud           # fresh clone, then: make tools
+cd ~/projects/lab/homelab-cloud           # fresh clone of nok500/lab, then: make tools
 mkdir -p .cache && .tools/bin/age -d ~/homelab-pki-<date>.tar.gz.age | tar -C .cache -xzf -
 chmod -R go-rwx .cache/ca .cache/age
 .tools/bin/step certificate fingerprint .cache/ca/root_ca.crt   # must be 20567e77…13c0d8 (top of this page)
