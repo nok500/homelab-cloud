@@ -82,7 +82,7 @@ flowchart LR
 | EKS | Talos Linux + Cilium |
 | S3 / RDS / ECR | Garage / CloudNativePG / Harbor |
 | IAM / Secrets Manager | Keycloak / OpenBao + External Secrets |
-| CodePipeline / CodeDeploy | Forgejo Actions / Argo CD + Rollouts |
+| CodePipeline / CodeBuild / CodeDeploy | Argo Workflows + Argo Events / Argo CD + Rollouts (GitHub stays the source repo) |
 | CloudWatch | kube-prometheus-stack + Loki |
 | Security (CNAPP, EDR, SCPs) | Trivy Operator, Kubescape, Falco, Wazuh, Kyverno, DefectDojo |
 
@@ -95,7 +95,7 @@ make lint     # pre-commit on this lab's files
 make temps    # host CPU temperatures
 make garage   # Garage S3 on the host (Terraform state, backups): deploy/converge, no sudo
 make garage-ui-password  # login for the Garage UI, https://s3.lab.macpro:3909 (user admin)
-make up       # build the lab: VPC + OPNsense, Talos cluster, Cilium, Argo CD, Keycloak (~20 min), shown in the TUI; ends with the logins
+make up       # build the lab: VPC + OPNsense, Talos cluster, Cilium, Argo CD, Keycloak, Harbor (~20 min), shown in the TUI; ends with the logins
 make tui      # lab monitor: status, host CPU/RAM/temp, VMs, pods, nodes, Talos dashboard
 make route    # sudo: route 10.10.0.0/16 via OPNsense (make up/start add it when missing)
 make db-restore-test  # point-in-time restore of the demo database from Garage, checked row by row
@@ -117,5 +117,5 @@ terraform/host   libvirt networks, pools, VMs        k8s/bootstrap  Argo CD + ro
 terraform/talos  Talos machine configs / bootstrap   k8s/platform   managed-service equivalents
 terraform/identity  Keycloak realm, users, clients (Argo CD, Harbor)
 terraform/aws    real-AWS-shaped modules             k8s/security   policy, runtime, posture
-apps/            sample service(s)                   .forgejo/      CI pipelines
+apps/            sample service(s)                   k8s/apps       what the pipeline deploys
 ```
