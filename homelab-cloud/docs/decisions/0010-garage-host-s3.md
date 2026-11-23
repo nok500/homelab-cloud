@@ -50,6 +50,12 @@ same name and certificate as S3, a second port, so no DNS change.
 - Tested locally before deploying: the API answers 401 without a login, a wrong password and token login get 401,
   and the admin login lists the buckets. `make garage` and `make verify` (section 8) repeat the login-wall check.
 - Its session-signing key is generated on first start into the `ui-data` volume and survives restarts.
-- Moves to Keycloak OIDC later (the UI supports it); deferred from milestone 6, which covers Argo CD ([ADR 0012](0012-identity-keycloak.md)).
+- **Stays on its own admin login, no Keycloak SSO (decided 2026-11-23).** The UI supports OIDC next to the admin
+  login, but v0.14.0 fetches the issuer's discovery document once at startup and exits if that fails: with OIDC
+  on, it would crash-loop whenever the lab (and Keycloak with it) is down or destroyed, taking the admin login
+  along, which is exactly when a UI outside the lab is needed. The Mac Pro host also has no route into the VPC
+  (`sso.lab.macpro` times out from it), and the UI has no CA setting. Revisit option: a second, SSO-only UI
+  in the cluster next to Keycloak (Garage's admin API behind Caddy TLS, its own Garage admin token in OpenBao),
+  this one staying as break-glass.
 - `make garage` now restarts only the container whose own files changed. Adding the UI restarted Garage too:
   a few seconds without S3, which CNPG's archiving retries through.

@@ -6,9 +6,9 @@ A production-shaped **AWS-like platform** built entirely as code on one Mac Pro 
 VPC → "EKS" → managed-service equivalents → GitOps CI/CD → DevSecOps tooling, plus AWS-provider Terraform
 modules tested against the AWS Emulator.
 
-> Status: **Phase 3 in progress** (managed-service equivalents). Done: Phase 1 VPC + OPNsense
+> Status: **Phase 4 in progress** (CI/CD and observability). Done: Phase 1 VPC + OPNsense
 > ([ADR 0003](docs/decisions/0003-vpc-networking.md)), Phase 2 "EKS": Talos v1.14.6 + Cilium 1.20.5 + Argo CD 3.6.2
-> ([ADR 0005](docs/decisions/0005-eks-on-talos.md)). Phase 3 so far: persistent volumes via local-path-provisioner
+> ([ADR 0005](docs/decisions/0005-eks-on-talos.md)). Phase 3 managed-service equivalents (closed 2026-11-23 by a clean rebuild, `make verify` 59/59): persistent volumes via local-path-provisioner
 > on dedicated worker disks ([ADR 0006](docs/decisions/0006-storage-and-state.md)); TLS everywhere from a private,
 > name-constrained CA: step-ca + cert-manager ([ADR 0007](docs/decisions/0007-private-pki.md)); secrets from OpenBao via
 > External Secrets, self-initialized and seeded on every rebuild ([ADR 0008](docs/decisions/0008-secrets-openbao.md)).
