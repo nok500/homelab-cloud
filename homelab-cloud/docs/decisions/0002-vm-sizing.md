@@ -48,6 +48,7 @@ Sizes are **Terraform variables per role**. Defaults follow the owner's request:
 | 2026-11-19 | Phase 2: workers 1 → **2 vCPU**, 1 → **2 GiB**; `talos-cp-1` 2 → **4 GiB** (operator) | 1 vCPU: Cilium probes time out → crash loops. 1 GiB: memory thrashing (PSI `full avg60` 24.5 %) once Cilium + Argo CD run |
 | 2026-11-20 | Before Phase 3: workers 2 → **4 GiB**, `opnsense` 1 → **4 GiB** (operator) | Headroom for the Phase 3 services; from here, bump only on measured pressure (PSI) |
 | 2026-11-23 | Before milestone 7 (Harbor): workers 4 → **10 GiB**, `opnsense` 4 → **3 GiB** (operator: use the host's RAM, keep ~4 GiB for the host OS; llama.cpp runs only on demand) | Worker requests were ~45 % and limits 103–123 % of 4 GiB after Keycloak, with Harbor and Phases 4–5 still to come. OPNsense only routes, so it goes to its documented 3 GB minimum. Lab total 16 → **27 GiB** of 31.3. Applied offline: `make shutdown`, apply, `make start` (an in-place change power-cycles running nodes) |
+| 2026-11-23 | Phase 4 milestone 1 (observability, [ADR 0014](0014-observability.md)): no resize | Adds about 1.8 GiB of requests (Prometheus 768 MiB, Loki 256 MiB, Grafana 192 MiB, Alloy 128 MiB, the rest small) to the ~2.5 GiB per worker already requested, of 9.2 GiB allocatable each |
 
 ## Consequences
 

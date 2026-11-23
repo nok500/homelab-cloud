@@ -257,4 +257,46 @@ server:
             }
           }
         }
+        # observability (ADR 0014)
+        request "monitoring-grafana-admin" {
+          operation = "update"
+          path      = "secret/data/monitoring/grafana-admin"
+          data = {
+            data = {
+              admin-user     = "admin"
+              admin-password = { eval_type = "string", eval_source = "file", path = "/openbao/seed/monitoring-grafana-admin-password" }
+            }
+          }
+        }
+        request "monitoring-grafana-oidc" {
+          operation = "update"
+          path      = "secret/data/monitoring/grafana-oidc"
+          data = {
+            data = {
+              clientSecret = { eval_type = "string", eval_source = "file", path = "/openbao/seed/keycloak-grafana-client-secret" }
+            }
+          }
+        }
+        request "monitoring-loki-s3" {
+          operation = "update"
+          path      = "secret/data/monitoring/loki-s3"
+          data = {
+            data = {
+              AWS_ACCESS_KEY_ID     = { eval_type = "string", eval_source = "file", path = "/openbao/seed/monitoring-loki-s3-access-key-id" }
+              AWS_SECRET_ACCESS_KEY = { eval_type = "string", eval_source = "file", path = "/openbao/seed/monitoring-loki-s3-secret-access-key" }
+            }
+          }
+        }
+        request "monitoring-ntfy" {
+          operation = "update"
+          path      = "secret/data/monitoring/ntfy"
+          data = {
+            data = {
+              alertmanager-token = { eval_type = "string", eval_source = "file", path = "/openbao/seed/monitoring-ntfy-alertmanager-token" }
+              labadmin-password  = { eval_type = "string", eval_source = "file", path = "/openbao/seed/monitoring-ntfy-labadmin-password" }
+              labadmin-hash      = { eval_type = "string", eval_source = "file", path = "/openbao/seed/monitoring-ntfy-labadmin-hash" }
+              alertmanager-hash  = { eval_type = "string", eval_source = "file", path = "/openbao/seed/monitoring-ntfy-alertmanager-hash" }
+            }
+          }
+        }
       }

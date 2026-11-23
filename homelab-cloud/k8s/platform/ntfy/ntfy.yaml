@@ -1,0 +1,114 @@
+---
+# ntfy v2.38.1 (a security release: template DoS hardening), ADR 0014: the lab's alert webhook, like SNS for
+# CloudWatch alarms. Alertmanager publishes to topic lab-alerts with its token; labadmin reads it in the web app
+# at https://ntfy.lab.macpro or the phone app (on the LAN). Everything else is denied. Users, ACL and token are
+# declarative (env from the ntfy-auth ExternalSecret, k8s/platform/monitoring/extras): no `ntfy user` steps.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ntfy
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi   # message cache (so a phone that was away catches up) + the user database
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ntfy
+  labels: {app.kubernetes.io/name: ntfy}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}   # one SQLite file on a RWO volume
+  selector:
+    matchLabels: {app.kubernetes.io/name: ntfy}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: ntfy}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: ntfy
+          image: docker.io/binwiederhier/ntfy:v2.38.1@sha256:038da2be5e668fee6d36a62884eea48975e1b71c29a56964e5298c1b9165a573
+          args: [serve]
+          env:
+            - {name: NTFY_BASE_URL, value: "https://ntfy.lab.macpro"}
+            - {name: NTFY_LISTEN_HTTP, value: ":8080"}
+            - {name: NTFY_BEHIND_PROXY, value: "true"}
+            - {name: NTFY_CACHE_FILE, value: /var/lib/ntfy/cache.db}
+            - {name: NTFY_CACHE_DURATION, value: 72h}
+            - {name: NTFY_AUTH_FILE, value: /var/lib/ntfy/user.db}
+            - {name: NTFY_AUTH_DEFAULT_ACCESS, value: deny-all}
+            - {name: NTFY_ENABLE_LOGIN, value: "true"}     # the web app's login (labadmin)
+            - {name: NTFY_ENABLE_SIGNUP, value: "false"}
+            - {name: NTFY_ENABLE_METRICS, value: "true"}
+            - {name: NTFY_METRICS_LISTEN_HTTP, value: ":9090"}
+          envFrom:
+            - secretRef:
+                name: ntfy-auth   # NTFY_AUTH_USERS, NTFY_AUTH_ACCESS, NTFY_AUTH_TOKENS
+          ports:
+            - {name: http, containerPort: 8080}
+            - {name: metrics, containerPort: 9090}
+          readinessProbe:
+            httpGet: {path: /v1/health, port: http}
+          livenessProbe:
+            httpGet: {path: /v1/health, port: http}
+            periodSeconds: 30
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/ntfy}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: ntfy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ntfy
+  labels: {app.kubernetes.io/name: ntfy}
+spec:
+  selector: {app.kubernetes.io/name: ntfy}
+  ports:
+    - {name: http, port: 80, targetPort: http}
+    - {name: metrics, port: 9090, targetPort: metrics}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ntfy
+spec:
+  parentRefs:
+    - name: lab
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - ntfy.lab.macpro
+  rules:
+    - backendRefs:
+        - name: ntfy
+          port: 80
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ntfy
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/name: ntfy}
+  endpoints:
+    - port: metrics
+      interval: 60s

@@ -1,0 +1,26 @@
+---
+# Approves the kubelets' serving-certificate CSRs (k8s/platform/kubelet-serving-cert-approver, ADR 0014).
+# Early: until it runs, kubelets have no serving certificate, so `kubectl logs/exec` and metrics wait.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kubelet-serving-cert-approver
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:nok500/lab.git
+    targetRevision: main
+    path: homelab-cloud/k8s/platform/kubelet-serving-cert-approver
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kubelet-serving-cert-approver
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 10
+      backoff: {duration: 10s, factor: 2, maxDuration: 2m}

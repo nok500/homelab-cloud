@@ -19,6 +19,9 @@
 #  11. Registry (Harbor): every component Ready, harbor-db healthy and archiving, the health API all green,
 #      login via Keycloak (OIDC), a test image pushed (crane), scanned by Trivy, and pulled by a pod from
 #      registry.lab.macpro (the nodes trust the lab CA for it).
+#  12. Observability: kubectl top (metrics-server, kubelet certificates verified), the monitoring stack ready,
+#      every Prometheus target up (incl. etcd, controller manager, scheduler, Argo CD), a real Grafana SSO login,
+#      logs and Kubernetes events in Loki, Loki's objects in Garage, and a test alert reaching ntfy.
 # Waits (bounded) for things that converge after bootstrap, so it can run straight after `make up`.
 set -uo pipefail
 
@@ -304,6 +307,90 @@ pod_pull() {
 }
 check "a pod pulls ${REG}/${TEST_REPO}:1.37.0 (containerd trusts the lab CA for the registry)" retry 3 10 pod_pull
 unset HARBOR_ADMIN
+
+echo "12. Observability (metrics, logs, alerts)"
+# kubectl top only works if metrics-server can verify every kubelet's serving certificate: CA-signed through
+# Talos serverTLSBootstrap + kubelet-serving-cert-approver (ADR 0014)
+top_nodes() { [[ "$(kubectl top nodes --no-headers 2>/dev/null | wc -l)" -eq 3 ]]; }
+check "metrics-server: kubectl top shows all 3 nodes (kubelet certificates verified)" retry 18 10 top_nodes
+mon_up() {
+  kubectl -n monitoring rollout status deploy/kps-grafana --timeout=10s &&
+    kubectl -n monitoring rollout status deploy/kps-kube-prometheus-stack-operator --timeout=10s &&
+    kubectl -n monitoring rollout status deploy/kps-kube-state-metrics --timeout=10s &&
+    kubectl -n monitoring rollout status ds/kps-prometheus-node-exporter --timeout=10s &&
+    kubectl -n monitoring rollout status sts/prometheus-kps-kube-prometheus-stack-prometheus --timeout=10s &&
+    kubectl -n monitoring rollout status sts/alertmanager-kps-kube-prometheus-stack-alertmanager --timeout=10s &&
+    kubectl -n monitoring rollout status sts/loki --timeout=10s &&
+    kubectl -n monitoring rollout status deploy/alloy --timeout=10s &&
+    kubectl -n monitoring rollout status deploy/ntfy --timeout=10s
+}
+check "Prometheus, Alertmanager, Grafana, Loki, Alloy, ntfy and the exporters ready" retry 30 10 mon_up
+PROM="/api/v1/namespaces/monitoring/services/http:kps-kube-prometheus-stack-prometheus:9090/proxy"
+# every scrape target up, and the ones that need the Talos changes or our ServiceMonitors are there at all
+targets_up() {
+  kubectl get --raw "${PROM}/api/v1/targets?state=active" | python3 -c '
+import json, sys
+t = json.load(sys.stdin)["data"]["activeTargets"]
+jobs = {x["labels"].get("job") for x in t}
+down = sorted({x["labels"].get("job", "?") + " " + x["labels"].get("instance", "") for x in t if x["health"] != "up"})
+need = {"kubelet", "apiserver", "kube-etcd", "kube-controller-manager", "kube-scheduler", "node-exporter",
+        "kube-state-metrics", "loki", "alloy", "ntfy"}
+missing = {n for n in need if not any(j and (j == n or j.endswith("/" + n)) for j in jobs)}   # loki: "monitoring/loki"
+argocd = [j for j in jobs if j and j.startswith("argocd")]
+if down or missing or len(argocd) < 3:
+    print("down:", down, "missing:", sorted(missing), "argocd jobs:", sorted(argocd)); sys.exit(1)
+print(f"{len(t)} targets up, incl. etcd, controller manager, scheduler, kubelets (TLS verified) and Argo CD")'
+}
+if out="$(retry 18 10 targets_up 2>&1)"; then ok "Prometheus: ${out##*$'\n'}"; else bad "Prometheus targets: ${out##*$'\n'}"; fi
+grafana_sso() {
+  SSO_USER=labadmin SSO_PASSWORD="$(SOPS_AGE_KEY_FILE="${ROOT}/.cache/age/key.txt" sops --decrypt \
+    --extract '["data"]["keycloak-labadmin-password"]' "${ROOT}/k8s/platform/openbao/seed.enc.yaml" | base64 -d)" \
+    "${ROOT}/scripts/grafana-sso-test.py" "${ROOT_CA}"
+}
+if out="$(retry 6 10 grafana_sso 2>&1)"; then ok "Grafana SSO: ${out##*$'\n'}"; else bad "Grafana SSO login as labadmin: ${out##*$'\n'}"; fi
+LOKI="/api/v1/namespaces/monitoring/services/http:loki:3100/proxy"
+# Alloy -> Loki: lines from this namespace in the last 10 minutes, and Kubernetes events
+loki_has() {
+  kubectl get --raw "${LOKI}/loki/api/v1/query?query=$(python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1]))' "$1")" \
+    | python3 -c 'import json,sys; r=json.load(sys.stdin)["data"]["result"]; sys.exit(not r or float(r[0]["value"][1]) <= 0)'
+}
+check "Loki holds pod logs (Alloy ships them through the API)" retry 18 10 loki_has 'sum(count_over_time({namespace="monitoring"}[10m]))'
+check "Loki holds Kubernetes events" retry 18 10 loki_has 'sum(count_over_time({job="integrations/kubernetes/eventhandler"}[30m]))'
+# Loki writes to Garage: its cluster seed object exists in bucket loki (TLS + key work)
+loki_s3() {
+  local kid sec
+  read -r kid sec < <(SOPS_AGE_KEY_FILE="${ROOT}/.cache/age/key.txt" sops --decrypt "${ROOT}/host/garage/secrets.enc.yaml" \
+    | python3 -c 'import sys,yaml; d=yaml.safe_load(sys.stdin)["stringData"]; print(d["loki_key_id"], d["loki_secret_key"])')
+  curl -fsS -m 10 --cacert "${ROOT_CA}" --aws-sigv4 "aws:amz:garage:s3" --user "${kid}:${sec}" \
+    -H 'x-amz-content-sha256: UNSIGNED-PAYLOAD' "https://s3.lab.macpro:3900/loki?list-type=2&max-keys=1000" \
+    | grep -q '<Key>'
+}
+check "Loki stores into Garage (bucket loki has objects)" retry 18 10 loki_s3
+# The alert path end to end: a test alert into Alertmanager's API, then it must show up in ntfy topic lab-alerts
+# (read as labadmin, through the Gateway). Ends after 2 min, so it resolves by itself.
+AM="/api/v1/namespaces/monitoring/services/http:kps-kube-prometheus-stack-alertmanager:9093/proxy"
+NTFY_PW="$(SOPS_AGE_KEY_FILE="${ROOT}/.cache/age/key.txt" sops --decrypt \
+  --extract '["data"]["monitoring-ntfy-labadmin-password"]' "${ROOT}/k8s/platform/openbao/seed.enc.yaml" | base64 -d)"
+ALERT_ID="VerifyTestAlert$$"
+since="$(date +%s)"
+send_alert() {
+  python3 -c 'import json,sys,datetime as d
+n=d.datetime.now(d.timezone.utc); f=lambda t: t.strftime("%Y-%m-%dT%H:%M:%SZ")
+print(json.dumps([{"labels": {"alertname": sys.argv[1], "severity": "info", "namespace": "verify"},
+  "annotations": {"summary": "make verify: test alert, resolves by itself"},
+  "startsAt": f(n), "endsAt": f(n + d.timedelta(minutes=2))}]))' "${ALERT_ID}" \
+    | kubectl create --raw "${AM}/api/v2/alerts" -f - >/dev/null
+}
+in_ntfy() {
+  curl -fsS -m 10 --cacert "${ROOT_CA}" -u "labadmin:${NTFY_PW}" "https://ntfy.lab.macpro/lab-alerts/json?poll=1&since=${since}" \
+    | grep -q "${ALERT_ID}"
+}
+if retry 6 10 send_alert && retry 18 10 in_ntfy; then
+  ok "alerting: a test alert went Alertmanager -> ntfy (https://ntfy.lab.macpro, topic lab-alerts)"
+else
+  bad "alerting: test alert ${ALERT_ID} not seen in ntfy topic lab-alerts"
+fi
+unset NTFY_PW
 
 echo
 printf '%d passed, %d failed\n' "${pass}" "${fail}"

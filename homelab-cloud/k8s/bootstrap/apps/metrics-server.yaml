@@ -1,0 +1,34 @@
+---
+# metrics-server: chart 3.14.0 = metrics-server 0.9.0 (ADR 0014). The resource metrics API behind
+# `kubectl top`, the HPA and the lab TUI's node box. Verifies the kubelets' serving certificates (signed by the
+# cluster CA through kubelet-serving-cert-approver), so no --kubelet-insecure-tls.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: metrics-server
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  sources:
+    - repoURL: https://kubernetes-sigs.github.io/metrics-server
+      chart: metrics-server
+      targetRevision: 3.14.0
+      helm:
+        releaseName: metrics-server
+        valueFiles:
+          - $values/homelab-cloud/k8s/platform/metrics-server/values.yaml
+    - repoURL: git@github.com:nok500/lab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 10
+      backoff: {duration: 10s, factor: 2, maxDuration: 2m}

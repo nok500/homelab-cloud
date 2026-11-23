@@ -124,6 +124,8 @@ down destroy: init ## Tear the lab down completely (cluster state first, then th
 	rm -f .cache/cluster/kubeconfig .cache/cluster/talosconfig
 	scripts/garage-wipe.sh cnpg-backups lab/   # fresh databases next time: empty WAL archive (ADR 0011)
 	scripts/garage-wipe.sh harbor lab/         # fresh registry next time: its database is fresh too (ADR 0013)
+	scripts/garage-wipe.sh loki fake/          # fresh logs next time: chunks of the one tenant (ADR 0014)
+	scripts/garage-wipe.sh loki index/         # ...and Loki's TSDB index
 
 .PHONY: db-restore-test
 db-restore-test: ## Point-in-time restore of pg-demo from Garage into a new cluster, checked row by row

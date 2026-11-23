@@ -1,0 +1,21 @@
+---
+# Argo CD's metrics (ADR 0014). The Services come from Argo CD's chart (metrics.enabled in
+# k8s/bootstrap/argocd/values.yaml); the ServiceMonitors live here, with the CRD's owner.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: argocd
+spec:
+  namespaceSelector:
+    matchNames: [argocd]
+  selector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - argocd-metrics               # application controller and applicationset controller
+          - argocd-server-metrics
+          - argocd-repo-server-metrics
+  endpoints:
+    - port: http-metrics
+      interval: 30s

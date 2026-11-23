@@ -1,0 +1,7 @@
+---
+# metrics-server 0.9.0 (chart 3.14.0, ADR 0014). The chart's defaults verify the kubelets' TLS against the
+# cluster CA: that works because the kubelets now get CA-signed serving certificates (Talos serverTLSBootstrap +
+# kubelet-serving-cert-approver). No --kubelet-insecure-tls.
+resources:
+  requests: {cpu: 50m, memory: 64Mi}
+  limits: {memory: 200Mi}

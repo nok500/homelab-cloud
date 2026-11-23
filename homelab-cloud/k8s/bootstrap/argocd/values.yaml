@@ -77,3 +77,19 @@ dex:
   enabled: false
 notifications:
   enabled: false
+
+# Metrics Services for Prometheus (ADR 0014). Only the Services here: their ServiceMonitors live with the
+# monitoring stack (k8s/platform/monitoring/extras), because this chart is also installed by the bootstrap,
+# before the ServiceMonitor CRD exists.
+controller:
+  metrics:
+    enabled: true
+server:
+  metrics:
+    enabled: true
+repoServer:
+  metrics:
+    enabled: true
+applicationSet:
+  metrics:
+    enabled: true

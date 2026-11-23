@@ -1,0 +1,13 @@
+---
+# kubelet-serving-cert-approver v0.12.1 (ADR 0014): approves the kubelets' serving-certificate CSRs
+# (Talos KubeletConfig serverTLSBootstrap, terraform/talos), after checking that the requested names and IPs
+# belong to the requesting node. So metrics-server and Prometheus can verify the kubelets instead of
+# skipping TLS verification. Upstream's standalone manifest at the release tag, image pinned by digest.
+# No `namespace:` here: one RoleBinding lives in `default` on purpose.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - https://raw.githubusercontent.com/alex1989hu/kubelet-serving-cert-approver/v0.12.1/deploy/standalone-install.yaml
+images:
+  - name: ghcr.io/alex1989hu/kubelet-serving-cert-approver
+    newTag: 0.12.1@sha256:445a8e5584f659701092d2ec8b625da8929dc75fe4d45274333bd9fe6db8fb75

@@ -28,7 +28,9 @@ TF_VAR_admin_password="$(seed keycloak-admin-password)"
 TF_VAR_labadmin_password="$(seed keycloak-labadmin-password)"
 TF_VAR_argocd_client_secret="$(seed keycloak-argocd-client-secret)"
 TF_VAR_harbor_client_secret="$(seed keycloak-harbor-client-secret)"
-export TF_VAR_admin_password TF_VAR_labadmin_password TF_VAR_argocd_client_secret TF_VAR_harbor_client_secret
+TF_VAR_grafana_client_secret="$(seed keycloak-grafana-client-secret)"
+export TF_VAR_admin_password TF_VAR_labadmin_password TF_VAR_argocd_client_secret TF_VAR_harbor_client_secret \
+  TF_VAR_grafana_client_secret
 
 case "${1:-}" in
   plan|apply|refresh|import)

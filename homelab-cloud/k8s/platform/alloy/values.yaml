@@ -1,0 +1,68 @@
+---
+# Grafana Alloy v1.22.0 (chart 1.16.0; v1.22.0 fixes a HIGH in its UI's vite, so it's taken at 10 days old),
+# ADR 0014. Ships every pod's logs and the cluster's Kubernetes events to Loki. It reads logs through the
+# Kubernetes API (loki.source.kubernetes), not from the nodes' /var/log, so it needs no hostPath mounts on the
+# Talos nodes and runs as a single Deployment instead of a DaemonSet.
+controller:
+  type: deployment
+  replicas: 1
+
+alloy:
+  enableReporting: false   # no usage reports to grafana.com
+  stabilityLevel: generally-available
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {memory: 384Mi}
+  configMap:
+    content: |
+      // every running pod in the cluster
+      discovery.kubernetes "pods" {
+        role = "pod"
+      }
+
+      // labels Grafana filters by: namespace, pod, container, app, node
+      discovery.relabel "pods" {
+        targets = discovery.kubernetes.pods.targets
+
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label  = "container"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+          target_label  = "app"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_node_name"]
+          target_label  = "node"
+        }
+      }
+
+      // tail the logs through the API server (kubectl logs, in effect)
+      loki.source.kubernetes "pods" {
+        targets    = discovery.relabel.pods.output
+        forward_to = [loki.write.lab.receiver]
+      }
+
+      // Kubernetes events (scheduling, pulls, OOM kills, probe failures) as log lines, job="integrations/kubernetes/eventhandler"
+      loki.source.kubernetes_events "cluster" {
+        log_format = "logfmt"
+        forward_to = [loki.write.lab.receiver]
+      }
+
+      loki.write "lab" {
+        endpoint {
+          url = "http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push"
+        }
+      }
+
+serviceMonitor:
+  enabled: true   # Alloy's own health in Prometheus

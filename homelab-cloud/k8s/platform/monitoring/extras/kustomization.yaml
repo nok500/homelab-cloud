@@ -1,0 +1,25 @@
+---
+# What the monitoring stack needs beside its charts (ADR 0014): Secrets from OpenBao, the lab root CA (Grafana
+# verifies Keycloak with it, Loki verifies Garage), ServiceMonitors for Argo CD, and Grafana dashboards.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+resources:
+  - external-secrets.yaml
+  - servicemonitors.yaml
+secretGenerator:
+  - name: lab-root-ca
+    files:
+      - ca.crt=lab-root-ca.crt   # written by scripts/pki-render.py
+    options:
+      disableNameSuffixHash: true
+# Dashboards beside the chart's own (cluster, nodes, pods, Prometheus): Grafana's sidecar loads every ConfigMap
+# labelled grafana_dashboard=1. argocd.json: upstream's, from argo-cd v3.6.2 (examples/dashboard.json).
+configMapGenerator:
+  - name: dashboard-argocd
+    files:
+      - argocd.json=dashboards/argocd.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"

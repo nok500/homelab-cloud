@@ -9,6 +9,8 @@
 #   harbor-*         Harbor (ADR 0013): admin + DB passwords, its fixed internal keys (the chart would otherwise
 #                    regenerate them on every Argo CD render), token-signing key pair, registry htpasswd, and
 #                    the Garage key for bucket harbor; keycloak-harbor-client-secret for its OIDC client
+#   monitoring-*     observability (ADR 0014): Grafana's admin password, keycloak-grafana-client-secret, the
+#                    Garage key for bucket loki, ntfy's Alertmanager token and labadmin's ntfy password + hash
 # OpenBao reads these files only on first start (self-init), then everything comes from OpenBao via
 # External Secrets. Re-run after adding a seed value, then commit + push.
 set -euo pipefail
@@ -115,6 +117,34 @@ else:
         input=pw + "\n", capture_output=True, text=True, check=True).stdout.strip()
     data["harbor-registry-password"] = b64(pw.encode())
     data["harbor-registry-htpasswd"] = b64(line.encode())
+# Observability (ADR 0014): generated once, then stable.
+for key in ("monitoring-grafana-admin-password", "keycloak-grafana-client-secret"):
+    data[key] = old.get(key) or b64(secrets.token_urlsafe(32).encode())
+data["monitoring-loki-s3-access-key-id"] = b64(garage["loki_key_id"].encode())
+data["monitoring-loki-s3-secret-access-key"] = b64(garage["loki_secret_key"].encode())
+# ntfy access token for Alertmanager: "tk_" + 29 lowercase letters/digits (ntfy's own format, 32 in all)
+import string as _string
+_alnum = _string.ascii_lowercase + _string.digits
+data["monitoring-ntfy-alertmanager-token"] = old.get("monitoring-ntfy-alertmanager-token") or \
+    b64(("tk_" + "".join(secrets.choice(_alnum) for _ in range(29))).encode())
+# ntfy users (declarative, ntfy wants a bcrypt hash per user): labadmin reads lab-alerts (web app/phone) with a
+# password; alertmanager publishes with its token only, so its password is random and thrown away. Password +
+# hash regenerate together. ntfy wants bcrypt cost >= 10; htpasswd defaults to 5, hence -C 10.
+def ntfy_hash(user, pw):
+    import subprocess
+    line = subprocess.run(
+        ["docker", "run", "--rm", "-i", HTTPD_IMAGE, "htpasswd", "-niBC", "10", user],
+        input=pw + "\n", capture_output=True, text=True, check=True).stdout.strip()
+    return line.split(":", 1)[1]
+if "monitoring-ntfy-labadmin-password" in old and "monitoring-ntfy-labadmin-hash" in old:
+    data["monitoring-ntfy-labadmin-password"] = old["monitoring-ntfy-labadmin-password"]
+    data["monitoring-ntfy-labadmin-hash"] = old["monitoring-ntfy-labadmin-hash"]
+else:
+    pw = secrets.token_urlsafe(24)
+    data["monitoring-ntfy-labadmin-password"] = b64(pw.encode())
+    data["monitoring-ntfy-labadmin-hash"] = b64(ntfy_hash("labadmin", pw).encode())
+data["monitoring-ntfy-alertmanager-hash"] = old.get("monitoring-ntfy-alertmanager-hash") or \
+    b64(ntfy_hash("alertmanager", secrets.token_urlsafe(24)).encode())
 print("---")
 print(yaml.dump({"apiVersion": "v1", "kind": "Secret",
                  "metadata": {"name": "openbao-seed", "namespace": "openbao"},

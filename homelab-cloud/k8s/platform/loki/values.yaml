@@ -1,0 +1,77 @@
+---
+# Loki 3.7.10 (grafana-community chart 21.2.3; 3.7.10 has golang.org/x/net + x/crypto security fixes, so it's
+# taken at 10 days old), ADR 0014. Single binary, one replica, chunks + index in Garage bucket `loki` (its own
+# key, from OpenBao), 7 days of retention. Logs arrive from Alloy (k8s/platform/alloy); Grafana queries it.
+deploymentMode: SingleBinary
+
+loki:
+  auth_enabled: false   # one tenant ("fake"): the lab has one team
+  commonConfig:
+    replication_factor: 1
+  schemaConfig:
+    configs:
+      - from: "2026-11-01"
+        store: tsdb
+        object_store: s3
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+  storage:
+    type: s3
+    bucketNames:
+      chunks: loki
+      ruler: loki
+      admin: loki
+    s3:
+      endpoint: s3.lab.macpro:3900   # Garage behind Caddy, TLS from the lab CA (ADR 0010)
+      region: garage
+      s3ForcePathStyle: true         # Garage only does path-style
+      insecure: false
+      accessKeyId: ${AWS_ACCESS_KEY_ID}           # from the loki-s3 Secret, expanded at start (-config.expand-env)
+      secretAccessKey: ${AWS_SECRET_ACCESS_KEY}
+      http_config:
+        ca_file: /etc/loki/lab-ca/ca.crt
+  limits_config:
+    retention_period: 168h   # 7 days, like Prometheus
+  compactor:
+    retention_enabled: true
+    delete_request_store: s3
+  analytics:
+    reporting_enabled: false   # no usage reports to grafana.com
+
+singleBinary:
+  replicas: 1
+  extraArgs: [-config.expand-env=true]
+  extraEnvFrom:
+    - secretRef:
+        name: loki-s3
+  extraVolumes:
+    - name: lab-root-ca
+      secret:
+        secretName: lab-root-ca
+  extraVolumeMounts:
+    - name: lab-root-ca
+      mountPath: /etc/loki/lab-ca
+      readOnly: true
+  persistence:
+    enabled: true
+    size: 5Gi   # WAL and the TSDB index before upload; chunks go to Garage
+    storageClass: local-path
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {memory: 1Gi}
+
+# monolithic: no separate read/write/backend targets, no gateway (Grafana and Alloy talk to the service)
+read: {replicas: 0}
+write: {replicas: 0}
+backend: {replicas: 0}
+gateway: {enabled: false}
+chunksCache: {enabled: false}    # memcached: not worth its memory at this volume
+resultsCache: {enabled: false}
+lokiCanary: {enabled: false}
+test: {enabled: false}
+
+monitoring:
+  serviceMonitor:
+    enabled: true   # Loki's own metrics in Prometheus (job monitoring/loki)

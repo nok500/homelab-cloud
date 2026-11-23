@@ -49,10 +49,15 @@ resource "keycloak_group" "harbor_admins" {
   name     = "harbor-admins" # Harbor's oidc_admin_group: system admins (ADR 0013)
 }
 
+resource "keycloak_group" "grafana_admins" {
+  realm_id = keycloak_realm.lab.id
+  name     = "grafana-admins" # Grafana's role_attribute_path maps it to Admin, everyone else Viewer (ADR 0014)
+}
+
 resource "keycloak_user_groups" "labadmin" {
   realm_id  = keycloak_realm.lab.id
   user_id   = keycloak_user.labadmin.id
-  group_ids = [keycloak_group.argocd_admins.id, keycloak_group.harbor_admins.id]
+  group_ids = [keycloak_group.argocd_admins.id, keycloak_group.harbor_admins.id, keycloak_group.grafana_admins.id]
 }
 
 # ---- a `groups` claim for every client that asks for it ----
@@ -127,5 +132,31 @@ resource "keycloak_openid_client" "harbor" {
 resource "keycloak_openid_client_default_scopes" "harbor" {
   realm_id       = keycloak_realm.lab.id
   client_id      = keycloak_openid_client.harbor.id
+  default_scopes = ["acr", "basic", "email", "profile", "roles", "web-origins", keycloak_openid_client_scope.groups.name]
+}
+
+# ---- Grafana (ADR 0014) ----
+resource "keycloak_openid_client" "grafana" {
+  realm_id  = keycloak_realm.lab.id
+  client_id = "grafana"
+  name      = "Grafana"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  client_secret                = var.grafana_client_secret
+  standard_flow_enabled        = true
+  direct_access_grants_enabled = false
+  implicit_flow_enabled        = false
+
+  root_url                        = var.grafana_url
+  base_url                        = "/"
+  valid_redirect_uris             = ["${var.grafana_url}/login/generic_oauth"]
+  valid_post_logout_redirect_uris = ["${var.grafana_url}/login"]
+  web_origins                     = [var.grafana_url]
+}
+
+resource "keycloak_openid_client_default_scopes" "grafana" {
+  realm_id       = keycloak_realm.lab.id
+  client_id      = keycloak_openid_client.grafana.id
   default_scopes = ["acr", "basic", "email", "profile", "roles", "web-origins", keycloak_openid_client_scope.groups.name]
 }

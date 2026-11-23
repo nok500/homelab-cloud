@@ -1,0 +1,210 @@
+---
+# kube-prometheus-stack 93.1.1 (Prometheus Operator v0.95.1, Grafana 13.3.0), the lab's CloudWatch (ADR 0014).
+# Prometheus keeps 7 days on a local-path PVC; Alertmanager sends to ntfy (k8s/platform/ntfy); Grafana logs in
+# through Keycloak. Loki (logs) is its own Application, wired in here as a Grafana datasource.
+
+crds:
+  enabled: true   # the Application syncs with ServerSideApply: these CRDs are too big for client-side apply
+
+windowsMonitoring:
+  enabled: false
+
+# ---- what Talos runs and how it exposes it ----
+# No kube-proxy (Cilium replaces it, ADR 0005).
+kubeProxy:
+  enabled: false
+defaultRules:
+  rules:
+    kubeProxy: false
+
+# The control plane's metrics listen on the node since terraform/talos binds them to 0.0.0.0. Talos runs etcd
+# as a system service, not a pod, so the chart can't find it by label: the single control plane's IP instead
+# (fixed by terraform/host; a second control plane would be added here).
+kubeEtcd:
+  endpoints: [10.10.1.20]
+  service:
+    port: 2381
+    targetPort: 2381
+  serviceMonitor:
+    scheme: http   # etcd's metrics listener (listen-metrics-urls): /metrics and /health only
+kubeControllerManager:
+  endpoints: [10.10.1.20]
+  service:
+    port: 10257
+    targetPort: 10257
+  serviceMonitor:
+    https: true
+    # its serving certificate is self-signed by the component itself (not by the cluster CA); the scrape still
+    # authenticates with Prometheus' service-account token
+    insecureSkipVerify: true
+kubeScheduler:
+  endpoints: [10.10.1.20]
+  service:
+    port: 10259
+    targetPort: 10259
+  serviceMonitor:
+    https: true
+    insecureSkipVerify: true   # same as the controller manager
+# Kubelets have CA-signed serving certificates (Talos serverTLSBootstrap + kubelet-serving-cert-approver), so
+# verify them against the cluster CA instead of the chart's default insecureSkipVerify.
+kubelet:
+  serviceMonitor:
+    tlsConfig:
+      insecureSkipVerify: false
+      ca:
+        configMap:
+          name: kube-root-ca.crt
+          key: ca.crt
+
+# ---- Prometheus ----
+prometheus:
+  prometheusSpec:
+    retention: 7d
+    retentionSize: 8GB   # below the volume, so the size cap cuts in before the disk fills
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 10Gi
+    resources:
+      requests: {cpu: 200m, memory: 768Mi}
+      limits: {memory: 2Gi}
+    # pick up every ServiceMonitor/PodMonitor/rule in the cluster, not only the ones labelled for this release
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    scrapeConfigSelectorNilUsesHelmValues: false
+
+# ---- Alertmanager -> ntfy ----
+alertmanager:
+  alertmanagerSpec:
+    secrets: [alertmanager-ntfy]   # mounted at /etc/alertmanager/secrets/alertmanager-ntfy/ (ExternalSecret)
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 1Gi
+    resources:
+      requests: {cpu: 20m, memory: 64Mi}
+      limits: {memory: 128Mi}
+  config:
+    route:
+      group_by: [namespace, alertname]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      receiver: ntfy
+      routes:
+        # Watchdog always fires (it proves the pipeline is alive) and InfoInhibitor only exists to inhibit:
+        # neither should ring a phone
+        - receiver: "null"
+          matchers: ['alertname = "Watchdog"']
+        - receiver: "null"
+          matchers: ['alertname = "InfoInhibitor"']
+    receivers:
+      - name: "null"
+      - name: ntfy
+        webhook_configs:
+          # ntfy's built-in alertmanager template turns the webhook JSON into a readable notification
+          - url: http://ntfy.monitoring.svc.cluster.local/lab-alerts?template=alertmanager
+            send_resolved: true
+            http_config:
+              authorization:
+                type: Bearer
+                credentials_file: /etc/alertmanager/secrets/alertmanager-ntfy/token
+
+# ---- Grafana ----
+grafana:
+  admin:
+    existingSecret: grafana-admin   # local admin (break-glass), from OpenBao
+    userKey: admin-user
+    passwordKey: admin-password
+  # No persistence: users come from Keycloak at each login and dashboards/datasources are provisioned, so the
+  # SQLite database in an emptyDir holds nothing that isn't rebuilt
+  persistence:
+    enabled: false
+  resources:
+    requests: {cpu: 50m, memory: 192Mi}
+    limits: {memory: 512Mi}
+  route:
+    main:
+      enabled: true
+      hostnames: [grafana.lab.macpro]
+      parentRefs:
+        - name: lab
+          namespace: gateway
+          sectionName: https
+  envFromSecrets:
+    - name: grafana-oidc   # GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET (ExternalSecret)
+  extraSecretMounts:
+    - name: lab-root-ca
+      secretName: lab-root-ca
+      mountPath: /etc/grafana/lab-ca
+      readOnly: true
+  grafana.ini:
+    server:
+      root_url: https://grafana.lab.macpro
+    users:
+      allow_sign_up: false
+    auth:
+      # SSO first; the login form stays for the local admin (break-glass)
+      oauth_allow_insecure_email_lookup: false
+    auth.generic_oauth:
+      enabled: true
+      name: Keycloak
+      client_id: grafana
+      # client_secret: from the env var GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
+      scopes: openid profile email groups
+      auth_url: https://sso.lab.macpro/realms/lab/protocol/openid-connect/auth
+      token_url: https://sso.lab.macpro/realms/lab/protocol/openid-connect/token
+      api_url: https://sso.lab.macpro/realms/lab/protocol/openid-connect/userinfo
+      # yamllint disable-line rule:line-length
+      signout_redirect_url: https://sso.lab.macpro/realms/lab/protocol/openid-connect/logout?post_logout_redirect_uri=https%3A%2F%2Fgrafana.lab.macpro%2Flogin&client_id=grafana
+      tls_client_ca: /etc/grafana/lab-ca/ca.crt   # sso.lab.macpro has a lab-CA certificate
+      use_pkce: true
+      allow_sign_up: true   # first SSO login creates the Grafana user
+      login_attribute_path: preferred_username
+      name_attribute_path: name
+      email_attribute_path: email
+      groups_attribute_path: groups
+      # Keycloak group grafana-admins (terraform/identity) -> Grafana Admin, everyone else Viewer
+      role_attribute_path: contains(groups[*], 'grafana-admins') && 'Admin' || 'Viewer'
+      role_attribute_strict: false
+      allow_assign_grafana_admin: false
+  sidecar:
+    dashboards:
+      searchNamespace: ALL   # ConfigMaps labelled grafana_dashboard=1 in any namespace (the sample app's, later)
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      uid: loki
+      url: http://loki.monitoring.svc.cluster.local:3100
+      access: proxy
+      jsonData:
+        maxLines: 1000
+
+# ---- small exporters: modest requests ----
+kube-state-metrics:
+  resources:
+    requests: {cpu: 20m, memory: 64Mi}
+    limits: {memory: 192Mi}
+prometheus-node-exporter:
+  resources:
+    requests: {cpu: 20m, memory: 32Mi}
+    limits: {memory: 64Mi}
+prometheusOperator:
+  resources:
+    requests: {cpu: 50m, memory: 96Mi}
+    limits: {memory: 256Mi}
+  # the operator's admission webhook certificate from cert-manager (already in the lab) instead of the
+  # chart's create/patch hook Jobs
+  admissionWebhooks:
+    certManager:
+      enabled: true

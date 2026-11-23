@@ -80,6 +80,16 @@ locals {
       ${indent(2, trimspace(file("${path.module}/../../k8s/platform/step-ca/config/root_ca.crt")))}
     EOT
     ,
+    # Kubelets ask the API for a serving certificate signed by the cluster CA (instead of a self-signed
+    # one), so metrics-server and Prometheus verify them (ADR 0014). The CSRs are approved by
+    # k8s/platform/kubelet-serving-cert-approver. A kubelet restart, not a reboot.
+    <<-EOT
+    apiVersion: v1alpha1
+    kind: KubeletConfig
+    config:
+      serverTLSBootstrap: true
+    EOT
+    ,
     # The generated HostnameConfig uses `auto: stable`, which conflicts with a static hostname:
     # replace the whole document.
     <<-EOT
@@ -123,6 +133,28 @@ locals {
     apiVersion: v1alpha1
     kind: KubeProxyConfig
     enabled: false
+    EOT
+    ,
+    # Metrics for Prometheus (ADR 0014). By default these listen on 127.0.0.1 only. The controller manager
+    # and scheduler still require an authenticated, authorized client on their HTTPS ports; etcd's metrics
+    # port serves /metrics and /health only (no keys, no data). All three on the private subnet only.
+    <<-EOT
+    apiVersion: v1alpha1
+    kind: KubeControllerManagerConfig
+    extraArgs:
+      bind-address: 0.0.0.0
+    ---
+    apiVersion: v1alpha1
+    kind: KubeSchedulerConfig
+    extraArgs:
+      bind-address: 0.0.0.0
+    EOT
+    ,
+    <<-EOT
+    cluster:
+      etcd:
+        extraArgs:
+          listen-metrics-urls: http://0.0.0.0:2381
     EOT
   ]
 }

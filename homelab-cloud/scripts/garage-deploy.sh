@@ -20,7 +20,7 @@ CACHE="${ROOT}/.cache/garage"
 S3_NAME="s3.lab.macpro"
 PORT=3900
 TARGET="${GARAGE_TARGET:-macpro}"
-BUCKETS=(tfstate cnpg-backups harbor)   # one key per bucket (harbor: registry layers, ADR 0013), named like the bucket, access to that bucket only
+BUCKETS=(tfstate cnpg-backups harbor loki)   # one key per bucket (harbor: registry layers, ADR 0013; loki: log chunks, ADR 0014), named like the bucket, access to that bucket only
 CAPACITY="${GARAGE_CAPACITY:-200G}" # layout capacity: an upper bound for placement, not a reservation
 
 if [[ "${TARGET}" == local ]]; then

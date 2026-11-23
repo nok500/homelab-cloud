@@ -43,3 +43,14 @@ variable "argocd_client_secret" {
   type        = string
   sensitive   = true
 }
+
+variable "grafana_url" {
+  type    = string
+  default = "https://grafana.lab.macpro"
+}
+
+variable "grafana_client_secret" {
+  description = "OIDC client secret shared with Grafana (seed keycloak-grafana-client-secret, ADR 0014)."
+  type        = string
+  sensitive   = true
+}

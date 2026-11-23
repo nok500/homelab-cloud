@@ -6,7 +6,9 @@ A production-shaped **AWS-like platform** built entirely as code on one Mac Pro 
 VPC → "EKS" → managed-service equivalents → GitOps CI/CD → DevSecOps tooling, plus AWS-provider Terraform
 modules tested against the AWS Emulator.
 
-> Status: **Phase 4 in progress** (CI/CD and observability). Done: Phase 1 VPC + OPNsense
+> Status: **Phase 4 in progress** (CI/CD and observability). Phase 4 so far: metrics, logs and alerts: Prometheus +
+> Grafana (Keycloak SSO) at https://grafana.lab.macpro, Loki on Garage, alerts to ntfy at https://ntfy.lab.macpro
+> ([ADR 0014](docs/decisions/0014-observability.md)). Done: Phase 1 VPC + OPNsense
 > ([ADR 0003](docs/decisions/0003-vpc-networking.md)), Phase 2 "EKS": Talos v1.14.6 + Cilium 1.20.5 + Argo CD 3.6.2
 > ([ADR 0005](docs/decisions/0005-eks-on-talos.md)). Phase 3 managed-service equivalents (closed 2026-11-23 by a clean rebuild, `make verify` 59/59): persistent volumes via local-path-provisioner
 > on dedicated worker disks ([ADR 0006](docs/decisions/0006-storage-and-state.md)); TLS everywhere from a private,
@@ -44,6 +46,7 @@ flowchart LR
       db[(CloudNativePG<br/>databases ns)]
       kc[Keycloak SSO<br/>sso.lab.macpro]
       reg[Harbor registry + Trivy<br/>registry.lab.macpro]
+      obs[Prometheus · Grafana · Loki<br/>grafana.lab.macpro<br/>alerts: ntfy.lab.macpro]
     end
     subgraph data["data subnet 10.10.2.0/24"]
       datanote[reserved]
@@ -74,6 +77,9 @@ flowchart LR
   reg -- "harbor-db" --> db
   reg -. "OIDC login" .-> kc
   cp & w1 & w2 -. "image pulls" .-> reg
+  obs -- "logs (S3, TLS)" --> garage
+  obs -. "OIDC login" .-> kc
+  cp & w1 & w2 -. "metrics · logs" .-> obs
 ```
 
 | AWS | Here |
@@ -102,13 +108,13 @@ make db-restore-test  # point-in-time restore of the demo database from Garage, 
 make identity # Keycloak realm, users, groups, OIDC clients (terraform/identity; make up runs it)
 make sso-password     # password of labadmin, the SSO user (Argo CD: LOG IN VIA KEYCLOAK)
 make logins   # every lab login in one table: URL, user, password (prints secrets)
-make verify   # cluster acceptance checks (verify-host: Phase 1, needs the test VM)
+make verify   # cluster acceptance checks, incl. a test alert to ntfy (verify-host: Phase 1, needs the test VM)
 make shutdown # safe stop of all VMs (make poweroff: also the Mac Pro; make start: back up)
 make destroy  # tear it down
 ```
 
 Manual one-time steps: [docs/bootstrap.md](docs/bootstrap.md). Design decisions: [docs/decisions/](docs/decisions/).
-Runbooks: [docs/runbooks/](docs/runbooks/) (the monitor: [monitoring.md](docs/runbooks/monitoring.md)).
+Runbooks: [docs/runbooks/](docs/runbooks/) (the TUI: [monitoring.md](docs/runbooks/monitoring.md); Grafana, logs, alerts: [observability.md](docs/runbooks/observability.md)).
 
 ## Layout
 
