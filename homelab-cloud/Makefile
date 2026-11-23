@@ -119,7 +119,7 @@ shutdown: ## Safe stop of all lab VMs: drain + stop workers, control plane, then
 poweroff: ## shutdown, then power off the Mac Pro (asks for the sudo password on macpro)
 	POWEROFF=1 scripts/lab-shutdown.sh
 
-start: ## Start the lab VMs after `make shutdown` (OPNsense first); not needed after a host power-on
+start: ## Start the lab after `make shutdown` or a host power-on: VMs (OPNsense first), then wake the databases
 	scripts/lab-start.sh
 
 .PHONY: route

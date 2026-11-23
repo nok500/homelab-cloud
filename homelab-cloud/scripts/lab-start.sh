@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Start the lab VMs after `make shutdown`, in dependency order: OPNsense (DHCP/DNS/NAT for everything), then
-# the control plane, then the workers. Not needed after a host power-on: the VMs autostart.
+# the control plane, then the workers. Also run it after a host power-on: the VMs autostart, but only this
+# script wakes the databases that `make shutdown` hibernated. Safe to run on a lab that's already up.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -37,15 +38,30 @@ until kubectl wait --for=condition=Ready nodes --all --timeout=10s >/dev/null 2>
 done
 kubectl get nodes
 echo ">> databases: wake from hibernation (make shutdown hibernates them)"
-mapfile -t DBS < <(kubectl get clusters.postgresql.cnpg.io -A \
-  -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name} {.metadata.annotations.cnpg\.io/hibernation}{"\n"}{end}' 2>/dev/null)
+# Nodes Ready isn't enough right after a host boot: every change to a Cluster goes through CNPG's admission
+# webhook, which only answers once the operator pod is up. So retry for up to 5 min, and fail loudly
+# (2026-11-23: the wake timed out on the webhook, the script said "Lab is up" and pg-demo stayed hibernated).
+deadline=$((SECONDS + 300))
+wake_failed=()
+until DBS_RAW="$(kubectl get clusters.postgresql.cnpg.io -A --request-timeout=15s \
+    -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name} {.metadata.annotations.cnpg\.io/hibernation}{"\n"}{end}' 2>/dev/null)"; do
+  ((SECONDS > deadline)) && { wake_failed+=("(could not list the CNPG clusters)"); break; }
+  sleep 5
+done
+mapfile -t DBS < <(grep . <<<"${DBS_RAW:-}")
 for line in "${DBS[@]}"; do
   read -r c hib <<<"${line}"
-  if [[ "${hib}" == on ]]; then
-    kubectl -n "${c%/*}" annotate cluster "${c#*/}" cnpg.io/hibernation- >/dev/null && echo "  ${c}: waking up"
-  else
-    echo "  ${c}: not hibernated"
-  fi
+  if [[ "${hib}" != on ]]; then echo "  ${c}: not hibernated"; continue; fi
+  until err="$(kubectl -n "${c%/*}" annotate cluster "${c#*/}" cnpg.io/hibernation- --request-timeout=15s 2>&1 >/dev/null)"; do
+    ((SECONDS > deadline)) && { echo "  ${c}: ${err}" >&2; wake_failed+=("${c}"); continue 2; }
+    echo "  ${c}: CNPG not answering yet, retrying"; sleep 10
+  done
+  echo "  ${c}: waking up"
 done
 echo
+if ((${#wake_failed[@]})); then
+  echo "Lab VMs are up, but these databases are still hibernated: ${wake_failed[*]}" >&2
+  echo "Run make start again, or: kubectl -n databases annotate cluster --all cnpg.io/hibernation-" >&2
+  exit 1
+fi
 echo "Lab is up after $((SECONDS / 60)) min. Apps settle within a few minutes; check with: make verify"

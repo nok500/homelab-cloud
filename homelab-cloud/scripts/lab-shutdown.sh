@@ -63,8 +63,13 @@ step "0/3 databases: hibernate (clean PostgreSQL stop before the drain)"
 mapfile -t DBS < <(kubectl get clusters.postgresql.cnpg.io -A --request-timeout=10s \
   -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}' 2>/dev/null)
 if ((${#DBS[@]})); then
-  for c in "${DBS[@]}"; do
-    kubectl -n "${c%/*}" annotate cluster "${c#*/}" cnpg.io/hibernation=on --overwrite >/dev/null && echo "  ${c}: hibernating"
+  for c in "${DBS[@]}"; do   # retried: the annotation goes through CNPG's webhook, which can be slow to answer
+    for try in 1 2 3 4 5 6; do
+      kubectl -n "${c%/*}" annotate cluster "${c#*/}" cnpg.io/hibernation=on --overwrite --request-timeout=15s >/dev/null \
+        && { echo "  ${c}: hibernating"; break; }
+      ((try == 6)) && echo "  ${c}: could not hibernate it (CNPG webhook not answering?), continuing" >&2
+      sleep 5
+    done
   done
   deadline=$((SECONDS + 180))
   for c in "${DBS[@]}"; do
@@ -89,7 +94,7 @@ if [[ "$(state opnsense)" == "running" ]]; then "${VIRSH[@]}" shutdown opnsense 
 wait_off 120 opnsense
 
 echo
-echo "Lab is off. Bring it back with: make start (or just power on the Mac Pro: VMs autostart)."
+echo "Lab is off. Bring it back with: make start (after a host power-on too: the VMs autostart, but only make start wakes the databases)."
 
 if [[ "${POWEROFF:-0}" == 1 ]]; then
   step "host: powering off the Mac Pro (sudo password on macpro)"
