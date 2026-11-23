@@ -11,7 +11,10 @@ power button, so the nodes get killed mid-write, and an unclean stop has already
 | Stop the lab, keep the host up | `make shutdown` | workers: `talosctl shutdown` (cordon + drain, clean OS stop) → control plane (etcd last) → OPNsense (ACPI). Each step waits until libvirt reports `shut off`, and forces a VM off only after `SHUTDOWN_TIMEOUT` (300 s), saying so |
 | Stop the lab **and** power off the Mac Pro | `make poweroff` | the same, then `ssh -t macpro sudo systemctl poweroff` (asks for the sudo password) |
 
-Measured 2026-11-20: `make shutdown` takes about 1.5 min, with no VM forced off.
+Measured 2026-11-20: `make shutdown` takes about 1.5 min, with no VM forced off. With Keycloak and Harbor it
+grew past 3 min in its database step: PostgreSQL's smart shutdown waited the full 180 s default for their
+connection pools to close. Every `Cluster` now sets `smartShutdownTimeout: 15`, then CNPG stops it fast
+([ADR 0011](../decisions/0011-databases-cnpg.md)).
 
 ## Start
 

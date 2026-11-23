@@ -42,3 +42,8 @@ Revisit if Harbor's data must survive rebuilds (milestone 7).
 - The VPC had to learn to resolve `s3.lab.macpro` first ([ADR 0004](0004-lab-dns.md) amendment).
 - Keycloak (milestone 6) and Harbor (milestone 7) get their databases as new `Cluster` resources in `databases`.
 - Memory: about 256 MiB requested per instance, plus a 64 MiB sidecar each, on 4 GiB workers.
+- Stop (amended 2026-11-23): every `Cluster` sets `smartShutdownTimeout: 15` (default 180). A smart shutdown
+  waits until every client has disconnected; Keycloak's and Harbor's connection pools never do, so hibernation in
+  `make shutdown` took the whole 3 min per database. After 15 s CNPG requests a fast shutdown: open transactions
+  roll back, and PostgreSQL still writes a shutdown checkpoint, so the stop stays clean. Applies to switchovers
+  and rolling updates too, where waiting on idle pools bought nothing either.
