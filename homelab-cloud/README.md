@@ -14,7 +14,7 @@ modules tested against the AWS Emulator.
 > External Secrets, self-initialized and seeded on every rebuild ([ADR 0008](docs/decisions/0008-secrets-openbao.md)).
 > Terraform state in Garage S3 on the Mac Pro host, outside the lab, over TLS from the lab CA
 > ([ADR 0010](docs/decisions/0010-garage-host-s3.md)); PostgreSQL via CloudNativePG with continuous backups to Garage
-> and a tested point-in-time restore ([ADR 0011](docs/decisions/0011-databases-cnpg.md)); single sign-on through Keycloak at https://sso.lab.macpro, Argo CD logs in through it, the realm managed as Terraform ([ADR 0012](docs/decisions/0012-identity-keycloak.md)).
+> and a tested point-in-time restore ([ADR 0011](docs/decisions/0011-databases-cnpg.md)); single sign-on through Keycloak at https://sso.lab.macpro, Argo CD logs in through it, the realm managed as Terraform ([ADR 0012](docs/decisions/0012-identity-keycloak.md)); Harbor at https://registry.lab.macpro, layers on Garage, Keycloak SSO, Trivy scanning, and the nodes pull from it ([ADR 0013](docs/decisions/0013-registry-harbor.md)).
 > Argo CD UI: https://argocd.lab.macpro/ ([access runbook](docs/runbooks/cluster-access.md)).
 
 ## Architecture
@@ -43,6 +43,7 @@ flowchart LR
       argo[Argo CD<br/>app-of-apps]
       db[(CloudNativePG<br/>databases ns)]
       kc[Keycloak SSO<br/>sso.lab.macpro]
+      reg[Harbor registry + Trivy<br/>registry.lab.macpro]
     end
     subgraph data["data subnet 10.10.2.0/24"]
       datanote[reserved]
@@ -69,6 +70,10 @@ flowchart LR
   argo -. "OIDC login" .-> kc
   kc -- "keycloak-db" --> db
   ws -- "realm (Terraform)" --> kc
+  reg -- "layers (S3, TLS)" --> garage
+  reg -- "harbor-db" --> db
+  reg -. "OIDC login" .-> kc
+  cp & w1 & w2 -. "image pulls" .-> reg
 ```
 
 | AWS | Here |
@@ -110,7 +115,7 @@ Runbooks: [docs/runbooks/](docs/runbooks/) (the monitor: [monitoring.md](docs/ru
 ```
 terraform/host   libvirt networks, pools, VMs        k8s/bootstrap  Argo CD + root app
 terraform/talos  Talos machine configs / bootstrap   k8s/platform   managed-service equivalents
-terraform/identity  Keycloak realm, users, clients
+terraform/identity  Keycloak realm, users, clients (Argo CD, Harbor)
 terraform/aws    real-AWS-shaped modules             k8s/security   policy, runtime, posture
 apps/            sample service(s)                   .forgejo/      CI pipelines
 ```

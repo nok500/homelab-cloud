@@ -70,6 +70,16 @@ locals {
         - ${local.net.private_gateway}
     EOT
     ,
+    # containerd trusts the lab root CA for the lab registry only (Harbor, ADR 0013), so pods can pull
+    # registry.lab.macpro/... images. Narrower than a TrustedRootsConfig, which would trust it system-wide.
+    <<-EOT
+    apiVersion: v1alpha1
+    kind: RegistryTLSConfig
+    name: registry.lab.macpro
+    ca: |
+      ${indent(2, trimspace(file("${path.module}/../../k8s/platform/step-ca/config/root_ca.crt")))}
+    EOT
+    ,
     # The generated HostnameConfig uses `auto: stable`, which conflicts with a static hostname:
     # replace the whole document.
     <<-EOT

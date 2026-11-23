@@ -31,6 +31,8 @@ rows=(
   "Keycloak admin console (realm master)|https://sso.lab.macpro/admin|admin|$(seed keycloak-admin-password)"
   "Keycloak account (realm lab)|https://sso.lab.macpro/realms/lab/account|labadmin|$(seed keycloak-labadmin-password)"
   "OpenBao (method Username)|https://bao.lab.macpro|admin|$(seed admin-password)"
+  "Harbor (SSO: LOGIN VIA OIDC PROVIDER)|https://registry.lab.macpro|labadmin|$(seed keycloak-labadmin-password)"
+  "Harbor local admin (break-glass, CLI)|https://registry.lab.macpro|admin|$(seed harbor-admin-password)"
   "Garage UI|https://s3.lab.macpro:3909|admin|$(garage garage_ui_admin_password)"
 )
 

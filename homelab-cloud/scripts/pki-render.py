@@ -17,6 +17,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 CA = ROOT / ".cache" / "ca"
 OUT = ROOT / "k8s" / "platform" / "step-ca" / "config"
 DB_CA = ROOT / "k8s" / "platform" / "databases" / "lab-root-ca.crt"
+HARBOR_CA = ROOT / "k8s" / "platform" / "harbor" / "secrets" / "lab-root-ca.crt"   # caBundleSecretName (ADR 0013)
 # Argo CD takes the CA for its OIDC issuer only inline (oidc.config rootCA): kept between these markers
 ARGOCD_VALUES = ROOT / "k8s" / "bootstrap" / "argocd" / "values.yaml"
 MARK_BEGIN, MARK_END = "# BEGIN lab-root-ca (written by scripts/pki-render.py)", "# END lab-root-ca"
@@ -101,6 +102,7 @@ def main() -> int:
     # for Garage (s3.lab.macpro, signed by the lab CA; ADR 0010)
     DB_CA.parent.mkdir(parents=True, exist_ok=True)
     DB_CA.write_text(rd("root_ca.crt"))
+    HARBOR_CA.write_text(rd("root_ca.crt"))   # Harbor trusts Garage, Keycloak (OIDC) with it
     # ...and for Argo CD's OIDC issuer (sso.lab.macpro, ADR 0012): replace the PEM between the markers,
     # keeping their indentation
     lines = ARGOCD_VALUES.read_text().splitlines(keepends=True)

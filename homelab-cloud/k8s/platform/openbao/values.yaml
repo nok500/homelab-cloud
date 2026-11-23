@@ -167,6 +167,87 @@ server:
             }
           }
         }
+        # Harbor (ADR 0013): key names are the ones its chart reads from each existingSecret
+        request "harbor-db-owner" {
+          operation = "update"
+          path      = "secret/data/databases/harbor-db"
+          data = {
+            data = {
+              username = "harbor"
+              password = { eval_type = "string", eval_source = "file", path = "/openbao/seed/harbor-db-password" }
+            }
+          }
+        }
+        request "harbor-db-client" {
+          operation = "update"
+          path      = "secret/data/harbor/db"
+          data = {
+            data = {
+              password = { eval_type = "string", eval_source = "file", path = "/openbao/seed/harbor-db-password" }
+            }
+          }
+        }
+        request "harbor-core" {
+          operation = "update"
+          path      = "secret/data/harbor/core"
+          data = {
+            data = {
+              secret                = { eval_type = "string", eval_source = "file", path = "/openbao/seed/harbor-core-secret" }
+              secretKey             = { eval_type = "string", eval_source = "file", path = "/openbao/seed/harbor-secret-key" }
+              CSRF_KEY              = { eval_type = "string", eval_source = "file", path = "/openbao/seed/harbor-csrf-key" }
+              HARBOR_ADMIN_PASSWORD = { eval_type = "string", eval_source = "file", path = "/openbao/seed/harbor-admin-password" }
+            }
+          }
+        }
+        request "harbor-token" {
+          operation = "update"
+          path      = "secret/data/harbor/token"
+          data = {
+            data = {
+              "tls.key" = { eval_type = "string", eval_source = "file", path = "/openbao/seed/harbor-token-key" }
+              "tls.crt" = { eval_type = "string", eval_source = "file", path = "/openbao/seed/harbor-token-cert" }
+            }
+          }
+        }
+        request "harbor-jobservice" {
+          operation = "update"
+          path      = "secret/data/harbor/jobservice"
+          data = {
+            data = {
+              JOBSERVICE_SECRET = { eval_type = "string", eval_source = "file", path = "/openbao/seed/harbor-jobservice-secret" }
+            }
+          }
+        }
+        request "harbor-registry" {
+          operation = "update"
+          path      = "secret/data/harbor/registry"
+          data = {
+            data = {
+              REGISTRY_HTTP_SECRET = { eval_type = "string", eval_source = "file", path = "/openbao/seed/harbor-registry-http-secret" }
+              REGISTRY_PASSWD      = { eval_type = "string", eval_source = "file", path = "/openbao/seed/harbor-registry-password" }
+              REGISTRY_HTPASSWD    = { eval_type = "string", eval_source = "file", path = "/openbao/seed/harbor-registry-htpasswd" }
+            }
+          }
+        }
+        request "harbor-s3" {
+          operation = "update"
+          path      = "secret/data/harbor/s3"
+          data = {
+            data = {
+              REGISTRY_STORAGE_S3_ACCESSKEY = { eval_type = "string", eval_source = "file", path = "/openbao/seed/harbor-s3-access-key-id" }
+              REGISTRY_STORAGE_S3_SECRETKEY = { eval_type = "string", eval_source = "file", path = "/openbao/seed/harbor-s3-secret-access-key" }
+            }
+          }
+        }
+        request "harbor-oidc" {
+          operation = "update"
+          path      = "secret/data/harbor/oidc"
+          data = {
+            data = {
+              clientSecret = { eval_type = "string", eval_source = "file", path = "/openbao/seed/keycloak-harbor-client-secret" }
+            }
+          }
+        }
         request "argocd-oidc" {
           operation = "update"
           path      = "secret/data/argocd/oidc-keycloak"

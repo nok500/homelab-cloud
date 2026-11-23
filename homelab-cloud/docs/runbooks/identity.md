@@ -8,7 +8,8 @@ operator in `k8s/platform/keycloak-operator`); the realm `lab` and everything in
 
 | | |
 |---|---|
-| Lab user | `labadmin` (group `argocd-admins`), password `make sso-password` |
+| Lab user | `labadmin` (groups `argocd-admins`, `harbor-admins`), password `make sso-password` |
+| Harbor | https://registry.lab.macpro → **LOGIN VIA OIDC PROVIDER** ([registry.md](registry.md)) |
 | Argo CD | https://argocd.lab.macpro → **LOG IN VIA KEYCLOAK** |
 | Account page | https://sso.lab.macpro/realms/lab/account |
 | Admin console | https://sso.lab.macpro/admin (realm **master**, user `admin`, password from `make logins`) |

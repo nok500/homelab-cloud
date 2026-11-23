@@ -26,6 +26,7 @@ the generated Secret `pg-demo-app` (user, password, URI).
 |---|---|---|
 | `pg-demo` | backup/restore test only | CNPG-generated `pg-demo-app` |
 | `keycloak-db` | Keycloak (`keycloak-db-rw.databases.svc.cluster.local`) | seeded: OpenBao `secret/databases/keycloak-db` = `secret/keycloak/db` ([ADR 0012](../decisions/0012-identity-keycloak.md)) |
+| `harbor-db` | Harbor (`harbor-db-rw…`, database `registry`) | seeded: `secret/databases/harbor-db` = `secret/harbor/db` ([ADR 0013](../decisions/0013-registry-harbor.md)) |
 
 ## Back up and restore
 

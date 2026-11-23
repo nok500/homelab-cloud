@@ -27,6 +27,17 @@ variable "labadmin_password" {
   sensitive   = true
 }
 
+variable "harbor_url" {
+  type    = string
+  default = "https://registry.lab.macpro"
+}
+
+variable "harbor_client_secret" {
+  description = "OIDC client secret shared with Harbor (seed keycloak-harbor-client-secret, ADR 0013)."
+  type        = string
+  sensitive   = true
+}
+
 variable "argocd_client_secret" {
   description = "OIDC client secret shared with Argo CD (seed keycloak-argocd-client-secret)."
   type        = string

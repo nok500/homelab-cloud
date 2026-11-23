@@ -16,6 +16,9 @@
 #      Garage works and a base backup completed. The full restore test is make db-restore-test.
 #  10. Identity: Keycloak operator + instance Ready, keycloak-db healthy and archiving, the lab realm's OIDC
 #      discovery served on https://sso.lab.macpro (lab CA), and a real Argo CD SSO login as labadmin.
+#  11. Registry (Harbor): every component Ready, harbor-db healthy and archiving, the health API all green,
+#      login via Keycloak (OIDC), a test image pushed (crane), scanned by Trivy, and pulled by a pod from
+#      registry.lab.macpro (the nodes trust the lab CA for it).
 # Waits (bounded) for things that converge after bootstrap, so it can run straight after `make up`.
 set -uo pipefail
 
@@ -233,6 +236,62 @@ sso_login() {
     "${ROOT}/scripts/sso-login-test.py" "${ROOT_CA}"
 }
 if out="$(retry 6 10 sso_login 2>&1)"; then ok "Argo CD SSO: ${out##*$'\n'}"; else bad "Argo CD SSO login as labadmin: ${out##*$'\n'}"; fi
+
+echo "11. Registry (Harbor)"
+REG="registry.lab.macpro"
+TEST_REPO="library/verify-busybox"
+harbor_up() {
+  for d in harbor-core harbor-jobservice harbor-portal harbor-registry; do
+    kubectl -n harbor rollout status "deploy/${d}" --timeout=10s || return 1
+  done
+  for s in harbor-redis harbor-trivy; do kubectl -n harbor rollout status "sts/${s}" --timeout=10s || return 1; done
+}
+check "Harbor components ready (core, jobservice, portal, registry, redis, trivy)" retry 30 10 harbor_up
+hdb_ok() {
+  retry 30 10 sh -c "kubectl -n databases get cluster harbor-db -o jsonpath='{.status.phase} {.status.readyInstances}' | grep -qx 'Cluster in healthy state 2'" &&
+    retry 30 10 sh -c "kubectl -n databases get cluster harbor-db -o jsonpath='{.status.conditions[?(@.type==\"ContinuousArchiving\")].status}' | grep -qx True"
+}
+check "harbor-db healthy, 2 instances, WAL archiving to Garage" hdb_ok
+harbor_health() {
+  curl -fsS -m 10 --cacert "${ROOT_CA}" "https://${REG}/api/v2.0/health" \
+    | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(d["status"] != "healthy")'
+}
+check "https://${REG}/api/v2.0/health: every component healthy (TLS from the lab CA)" retry 18 10 harbor_health
+oidc_mode() {
+  curl -fsS -m 10 --cacert "${ROOT_CA}" "https://${REG}/api/v2.0/systeminfo" \
+    | python3 -c 'import json,sys; sys.exit(json.load(sys.stdin).get("auth_mode") != "oidc_auth")' &&
+  curl -s -m 10 -o /dev/null -w '%{redirect_url}' --cacert "${ROOT_CA}" "https://${REG}/c/oidc/login" \
+    | grep -q '^https://sso.lab.macpro/realms/lab/'
+}
+check "login via Keycloak: auth mode oidc_auth, /c/oidc/login redirects to the lab realm" retry 6 10 oidc_mode
+
+# push / scan / pull: crane gets a throwaway docker config and a CA bundle with the lab root added
+work="$(mktemp -d)"; trap 'rm -rf "${work}"' EXIT
+cat /etc/ssl/certs/ca-certificates.crt "${ROOT_CA}" > "${work}/ca.crt" 2>/dev/null || cp "${ROOT_CA}" "${work}/ca.crt"
+HARBOR_ADMIN="$(SOPS_AGE_KEY_FILE="${ROOT}/.cache/age/key.txt" sops --decrypt \
+  --extract '["data"]["harbor-admin-password"]' "${ROOT}/k8s/platform/openbao/seed.enc.yaml" | base64 -d)"
+hapi() { curl -fsS -m 20 --cacert "${ROOT_CA}" -u "admin:${HARBOR_ADMIN}" "$@"; }
+push_image() {
+  DOCKER_CONFIG="${work}" SSL_CERT_FILE="${work}/ca.crt" crane auth login "${REG}" -u admin -p "${HARBOR_ADMIN}" >/dev/null 2>&1 &&
+    DOCKER_CONFIG="${work}" SSL_CERT_FILE="${work}/ca.crt" crane copy docker.io/library/busybox:1.37.0 \
+      "${REG}/${TEST_REPO}:1.37.0" --platform linux/amd64 >/dev/null 2>&1
+}
+check "push: busybox:1.37.0 -> ${REG}/${TEST_REPO}:1.37.0 (crane, as admin)" retry 3 10 push_image
+scanned() {
+  local a="https://${REG}/api/v2.0/projects/library/repositories/verify-busybox/artifacts/1.37.0"
+  hapi -X POST "${a}/scan" -o /dev/null 2>/dev/null   # (re)queue; 412 while one runs is fine
+  hapi "${a}?with_scan_overview=true" | python3 -c '
+import json,sys; o=(json.load(sys.stdin).get("scan_overview") or {})
+sys.exit(not any(v.get("scan_status") == "Success" for v in o.values()))'
+}
+check "Trivy scanned it (scan status Success)" retry 30 10 scanned
+PULL_OVERRIDES='{"spec":{"securityContext":{"runAsNonRoot":true,"runAsUser":65534,"seccompProfile":{"type":"RuntimeDefault"}},"containers":[{"name":"pull","image":"'"${REG}/${TEST_REPO}"':1.37.0","command":["echo","pulled-from-harbor"],"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}}}]}}'
+pod_pull() {
+  kubectl run "verify-pull-$$" --rm -i --restart=Never --quiet --image="${REG}/${TEST_REPO}:1.37.0" \
+    --image-pull-policy=Always --overrides="${PULL_OVERRIDES}" --pod-running-timeout=2m 2>/dev/null | grep -q pulled-from-harbor
+}
+check "a pod pulls ${REG}/${TEST_REPO}:1.37.0 (containerd trusts the lab CA for the registry)" retry 3 10 pod_pull
+unset HARBOR_ADMIN
 
 echo
 printf '%d passed, %d failed\n' "${pass}" "${fail}"

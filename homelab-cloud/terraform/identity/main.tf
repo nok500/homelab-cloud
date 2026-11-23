@@ -44,10 +44,15 @@ resource "keycloak_user" "labadmin" {
   }
 }
 
+resource "keycloak_group" "harbor_admins" {
+  realm_id = keycloak_realm.lab.id
+  name     = "harbor-admins" # Harbor's oidc_admin_group: system admins (ADR 0013)
+}
+
 resource "keycloak_user_groups" "labadmin" {
   realm_id  = keycloak_realm.lab.id
   user_id   = keycloak_user.labadmin.id
-  group_ids = [keycloak_group.argocd_admins.id]
+  group_ids = [keycloak_group.argocd_admins.id, keycloak_group.harbor_admins.id]
 }
 
 # ---- a `groups` claim for every client that asks for it ----
@@ -95,5 +100,32 @@ resource "keycloak_openid_client_default_scopes" "argocd" {
   realm_id  = keycloak_realm.lab.id
   client_id = keycloak_openid_client.argocd.id
   # Keycloak's built-in defaults for a new client, plus groups
+  default_scopes = ["acr", "basic", "email", "profile", "roles", "web-origins", keycloak_openid_client_scope.groups.name]
+}
+
+# ---- Harbor (ADR 0013) ----
+
+resource "keycloak_openid_client" "harbor" {
+  realm_id  = keycloak_realm.lab.id
+  client_id = "harbor"
+  name      = "Harbor"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  client_secret                = var.harbor_client_secret
+  standard_flow_enabled        = true
+  direct_access_grants_enabled = false
+  implicit_flow_enabled        = false
+
+  root_url                        = var.harbor_url
+  base_url                        = "/"
+  valid_redirect_uris             = ["${var.harbor_url}/c/oidc/callback"]
+  valid_post_logout_redirect_uris = ["${var.harbor_url}/"]
+  web_origins                     = [var.harbor_url]
+}
+
+resource "keycloak_openid_client_default_scopes" "harbor" {
+  realm_id       = keycloak_realm.lab.id
+  client_id      = keycloak_openid_client.harbor.id
   default_scopes = ["acr", "basic", "email", "profile", "roles", "web-origins", keycloak_openid_client_scope.groups.name]
 }

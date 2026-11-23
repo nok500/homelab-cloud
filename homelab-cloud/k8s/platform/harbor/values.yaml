@@ -1,0 +1,114 @@
+---
+# Harbor 2.15.4 (chart 1.19.4): the lab's ECR (ADR 0013). https://registry.lab.macpro through the Gateway,
+# layers on Garage (bucket harbor, prefix /lab), its database on CNPG (harbor-db in `databases`), login via
+# Keycloak (OIDC), Trivy scanning. Every secret comes from k8s/platform/harbor/secrets (OpenBao), none from
+# the chart's random defaults.
+externalURL: https://registry.lab.macpro
+
+expose:
+  type: route            # a Gateway API HTTPRoute on the lab Gateway; TLS ends there (step-ca wildcard)
+  tls:
+    enabled: false       # no chart-made certificates (and no nginx in route mode)
+  route:
+    parentRefs:
+      - name: lab
+        namespace: gateway
+        sectionName: https
+    hosts:
+      - registry.lab.macpro
+
+caBundleSecretName: harbor-ca   # lab root CA: registry -> Garage, core -> Keycloak, Trivy
+
+persistence:
+  enabled: true
+  resourcePolicy: ""     # no helm "keep": volumes go with the app, like the rest of the lab (fresh per rebuild)
+  persistentVolumeClaim:
+    jobservice:
+      jobLog: {size: 1Gi}
+    redis: {size: 1Gi}
+    trivy: {size: 5Gi}   # vulnerability DB + cache
+  imageChartStorage:
+    # serve layers through the registry instead of redirecting clients to pre-signed Garage URLs: nodes then
+    # only need to trust registry.lab.macpro, and pulls stay inside the VPC
+    disableredirect: true
+    type: s3
+    s3:
+      existingSecret: harbor-s3
+      region: garage            # Garage's s3_region: SigV4 signatures must use it
+      bucket: harbor
+      regionendpoint: https://s3.lab.macpro:3900   # with a regionendpoint, the driver uses path-style URLs
+      rootdirectory: /lab       # make destroy wipes s3://harbor/lab/ (fresh registry per rebuild)
+      secure: true
+      v4auth: true
+
+existingSecretAdminPassword: harbor-core-ext
+existingSecretSecretKey: harbor-core-ext
+updateStrategy:
+  type: Recreate         # jobservice, trivy and redis mount ReadWriteOnce volumes
+
+database:
+  type: external
+  external:
+    host: harbor-db-rw.databases.svc.cluster.local   # CNPG read-write service: always the primary
+    port: "5432"
+    username: harbor
+    coreDatabase: registry
+    existingSecret: harbor-db
+    sslmode: require     # CNPG serves TLS with its own CA (not the lab's): encrypted, not verified
+  maxIdleConns: 20
+  maxOpenConns: 100
+
+redis:
+  type: internal         # Harbor's own redis-photon image (not Bitnami)
+
+core:
+  existingSecret: harbor-core-ext
+  existingXsrfSecret: harbor-core-ext
+  secretName: harbor-token
+  # CONFIG_OVERWRITE_JSON (OIDC via Keycloak, with the client secret) from an ExternalSecret; listed after the
+  # chart's envFrom, so it wins
+  extraEnvVars:
+    - name: CONFIG_OVERWRITE_JSON
+      valueFrom:
+        secretKeyRef:
+          name: harbor-oidc-config
+          key: CONFIG_OVERWRITE_JSON
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {memory: 512Mi}
+
+jobservice:
+  existingSecret: harbor-jobservice-ext
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {memory: 256Mi}
+
+registry:
+  existingSecret: harbor-registry-ext
+  credentials:
+    existingSecret: harbor-registry-ext   # REGISTRY_PASSWD + REGISTRY_HTPASSWD (a fixed bcrypt line)
+  registry:
+    resources:
+      requests: {cpu: 50m, memory: 128Mi}
+      limits: {memory: 512Mi}
+  controller:
+    resources:
+      requests: {cpu: 20m, memory: 64Mi}
+      limits: {memory: 128Mi}
+
+portal:
+  resources:
+    requests: {cpu: 10m, memory: 32Mi}
+    limits: {memory: 64Mi}
+
+trivy:
+  enabled: true          # the "Inspector" half of ECR: scan on push
+  resources:
+    requests: {cpu: 100m, memory: 512Mi}
+    limits: {memory: 1Gi}
+
+metrics:
+  enabled: false         # Phase 4 (kube-prometheus-stack)
+exporter:
+  resources:
+    requests: {cpu: 10m, memory: 32Mi}

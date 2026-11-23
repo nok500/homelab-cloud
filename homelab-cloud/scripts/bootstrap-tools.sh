@@ -12,6 +12,7 @@ AGE_VERSION="1.3.2"
 # age publishes Sigsum proofs, not a checksum file: hash pinned on first download (2026-11-20)
 AGE_SHA256="cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10"
 STEP_VERSION="0.31.0"
+CRANE_VERSION="0.22.1"   # go-containerregistry: push/pull test images to Harbor (make verify, ADR 0013)
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TOOLS="${ROOT}/.tools"
@@ -93,5 +94,16 @@ if [[ "$("${TOOLS}/venv/bin/pre-commit" --version 2>/dev/null)" != *"${PRE_COMMI
   "${TOOLS}/venv/bin/pip" install --quiet --disable-pip-version-check "pre-commit==${PRE_COMMIT_VERSION}"
 fi
 ln -sf ../venv/bin/pre-commit "${BIN}/pre-commit"
+
+if [[ "$("${BIN}/crane" version 2>/dev/null)" != "${CRANE_VERSION}" ]]; then
+  echo ">> crane ${CRANE_VERSION}"
+  asset="go-containerregistry_Linux_x86_64.tar.gz"
+  base="https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}"
+  curl -fsSL -o "${TMP}/${asset}" "${base}/${asset}"
+  curl -fsSL -o "${TMP}/crane.sums" "${base}/checksums.txt"
+  verify crane.sums "${asset}"
+  tar -xzf "${TMP}/${asset}" -C "${TMP}" crane
+  install -m 0755 "${TMP}/crane" "${BIN}/crane"
+fi
 
 echo "tools ready in ${BIN}"

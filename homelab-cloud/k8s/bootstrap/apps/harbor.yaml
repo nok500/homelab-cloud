@@ -1,0 +1,41 @@
+---
+# Harbor, the lab's ECR (k8s/platform/harbor, ADR 0013): after databases (wave 3, harbor-db) and Keycloak
+# (wave 4, its OIDC issuer).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: harbor
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: default
+  sources:
+    - repoURL: https://helm.goharbor.io
+      chart: harbor
+      targetRevision: 1.19.4
+      helm:
+        releaseName: harbor
+        valueFiles:
+          - $values/homelab-cloud/k8s/platform/harbor/values.yaml
+    - repoURL: git@github.com:nok500/lab.git
+      targetRevision: main
+      ref: values
+    # its Secrets, as ExternalSecrets from OpenBao, plus the lab CA bundle
+    - repoURL: git@github.com:nok500/lab.git
+      targetRevision: main
+      path: homelab-cloud/k8s/platform/harbor/secrets
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: harbor
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true   # ExternalSecret CRD arrives with external-secrets
+    retry:
+      limit: 10
+      backoff: {duration: 10s, factor: 2, maxDuration: 2m}
