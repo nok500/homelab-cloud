@@ -10,6 +10,10 @@ metadata:
 spec:
   instances: 1
   image: quay.io/keycloak/keycloak:26.8.2@sha256:7e66a96e4739239070aeaf72e4c5decf0f7f682cfc725b9f7ea2b336eaba38b3
+  # The stock image isn't pre-built (kc.sh build) for this config, and the operator adds `start --optimized`
+  # unless told otherwise: Keycloak then refuses its first start. Without it Keycloak runs the build step
+  # itself at each start (slower start, about a minute). A custom pre-built image would avoid that.
+  startOptimized: false
   db:
     vendor: postgres
     host: keycloak-db-rw.databases.svc.cluster.local   # CNPG's read-write service: always the primary

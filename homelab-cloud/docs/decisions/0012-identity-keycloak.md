@@ -58,6 +58,11 @@ Against the pinned 26.8.2 image in Docker on voodoo, with the stack on local sta
   Only two of the four CRDs were installed, so it crash-looped on `keycloaksamlclients` (404), never created the
   Keycloak pod, and `sso.lab.macpro` answered 500 (a route with no backend). Now all four, as upstream's
   `kubernetes/kustomization.yml` lists them. The Docker test ran Keycloak alone, so it couldn't catch this.
+- Then Keycloak crash-looped: the operator starts it with `start --optimized`, which only works on an image
+  pre-built with `kc.sh build`, and the stock image isn't ("The '--optimized' flag was used for first ever server
+  start"). `spec.startOptimized: false`: Keycloak runs the build step itself at each start, about a minute
+  slower. A custom pre-built image is the later optimization. (The Docker test used `start-dev`, which never
+  takes that path.)
 
 ## Verification
 
