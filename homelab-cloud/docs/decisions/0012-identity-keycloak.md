@@ -70,6 +70,12 @@ Against the pinned 26.8.2 image in Docker on voodoo, with the stack on local sta
 Result (2026-11-23, live lab): `make identity` created 8 resources, a second plan is empty, and `make verify`
 passed **52/52**, including the real SSO login (`labadmin`, group `argocd-admins`, 19 Applications visible).
 
+Clean rebuild (2026-11-23): `make destroy && make up` rebuilt everything; OpenBao self-seeded Keycloak's values
+from empty storage (every ExternalSecret synced), and `make identity` added all 8 resources to the empty state
+(`make destroy` had forgotten the old ones). The TUI session running the build was closed at 15:30:30, during
+the Argo CD convergence wait, so `make identity` ran by hand afterwards; `make verify` **52/52**. Not yet seen
+end to end: `make up` reaching `make identity` by itself.
+
 ## Verification
 
 `make verify` section 10: operator rolled out, Keycloak CR Ready, `keycloak-db` healthy with 2 instances and
