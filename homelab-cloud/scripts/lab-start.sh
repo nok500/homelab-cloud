@@ -37,6 +37,11 @@ until kubectl wait --for=condition=Ready nodes --all --timeout=10s >/dev/null 2>
   ((SECONDS > deadline)) && { echo "  nodes not Ready after 10 min" >&2; kubectl get nodes >&2; exit 1; }; sleep 5
 done
 kubectl get nodes
+# make shutdown's drain leaves every node cordoned. Talos uncordons only at the end of its last boot phase,
+# ~8 min after the node is Ready (2026-11-23: startEverything 7m49s), and until then nothing schedules: no
+# Argo CD, no CNPG webhook. Uncordoning here is safe: the cordon is our own, from the drain.
+echo ">> uncordon (make shutdown's drain cordoned the nodes)"
+kubectl uncordon $(kubectl get nodes -o name) | sed 's/^/  /'
 echo ">> databases: wake from hibernation (make shutdown hibernates them)"
 # Nodes Ready isn't enough right after a host boot: every change to a Cluster goes through CNPG's admission
 # webhook, which only answers once the operator pod is up. So retry for up to 5 min, and fail loudly

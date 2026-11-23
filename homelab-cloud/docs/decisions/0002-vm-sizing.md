@@ -47,9 +47,12 @@ Sizes are **Terraform variables per role**. Defaults follow the owner's request:
 | 2026-11-19 | Phase 2: `talos-cp-1` memory 1 → **2 GiB** (still 1 vCPU); workers stay 1 vCPU / 1 GiB | Talos's cluster health gate rejects it: `node does not meet memory requirements: expected at least 1698 MiB, actual 944 MiB`. Workers pass at 1 GiB |
 | 2026-11-19 | Phase 2: workers 1 → **2 vCPU**, 1 → **2 GiB**; `talos-cp-1` 2 → **4 GiB** (operator) | 1 vCPU: Cilium probes time out → crash loops. 1 GiB: memory thrashing (PSI `full avg60` 24.5 %) once Cilium + Argo CD run |
 | 2026-11-20 | Before Phase 3: workers 2 → **4 GiB**, `opnsense` 1 → **4 GiB** (operator) | Headroom for the Phase 3 services; from here, bump only on measured pressure (PSI) |
+| 2026-11-23 | Before milestone 7 (Harbor): workers 4 → **10 GiB**, `opnsense` 4 → **3 GiB** (operator: use the host's RAM, keep ~4 GiB for the host OS; llama.cpp runs only on demand) | Worker requests were ~45 % and limits 103–123 % of 4 GiB after Keycloak, with Harbor and Phases 4–5 still to come. OPNsense only routes, so it goes to its documented 3 GB minimum. Lab total 16 → **27 GiB** of 31.3. Applied offline: `make shutdown`, apply, `make start` (an in-place change power-cycles running nodes) |
 
 ## Consequences
 
 Resizing means changing a variable and running `terraform apply` (the VM restarts; for Talos nodes that's a
-reboot, see `docs/runbooks/cluster-access.md`). Each bump is recorded here with its
+reboot, see `docs/runbooks/cluster-access.md`). The clean way for memory: `make shutdown`, `scripts/tf.sh host
+apply` (OPNsense first, started by hand; Terraform starts the Talos VMs), then `make start`. With llama.cpp
+loaded on the host, the workers have to shrink again. Each bump is recorded here with its
 reason, which shows how the footprint grows phase by phase.

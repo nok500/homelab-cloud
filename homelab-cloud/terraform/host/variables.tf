@@ -57,10 +57,10 @@ variable "vm_sizes" {
     disk   = number
   }))
   default = {
-    opnsense     = { vcpu = 1, memory = 4096, disk = 8 }
+    opnsense     = { vcpu = 1, memory = 3072, disk = 8 } # routing/DNS/NTP only; OPNsense's documented minimum (2026-11-23)
     testvm       = { vcpu = 1, memory = 1024, disk = 10 }
-    controlplane = { vcpu = 1, memory = 4096, disk = 20 } # Talos health gate: CP needs >= 1698 MiB (ADR 0002)
-    worker       = { vcpu = 2, memory = 4096, disk = 20 } # ADR 0002 log: 1 vCPU / 1 GiB starved Cilium + Argo CD
+    controlplane = { vcpu = 1, memory = 4096, disk = 20 }  # Talos health gate: CP needs >= 1698 MiB (ADR 0002)
+    worker       = { vcpu = 2, memory = 10240, disk = 20 } # ADR 0002 log: 10 GiB from 2026-11-23 (host keeps ~4 GiB)
   }
 }
 
