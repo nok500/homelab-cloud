@@ -90,7 +90,7 @@ make lint     # pre-commit on this lab's files
 make temps    # host CPU temperatures
 make garage   # Garage S3 on the host (Terraform state, backups): deploy/converge, no sudo
 make garage-ui-password  # login for the Garage UI, https://s3.lab.macpro:3909 (user admin)
-make up       # build the lab: VPC + OPNsense, Talos cluster, Cilium, Argo CD (~15 min), shown in the TUI
+make up       # build the lab: VPC + OPNsense, Talos cluster, Cilium, Argo CD, Keycloak (~20 min), shown in the TUI; ends with the logins
 make tui      # lab monitor: status, host CPU/RAM/temp, VMs, pods, nodes, Talos dashboard
 make route    # sudo: route 10.10.0.0/16 via OPNsense (make up/start add it when missing)
 make db-restore-test  # point-in-time restore of the demo database from Garage, checked row by row

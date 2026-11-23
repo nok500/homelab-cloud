@@ -3,7 +3,13 @@
 # SOPS files in Git (decrypted with .cache/age/key.txt) or, for Argo CD's local admin, from the cluster.
 # Prints secrets to the terminal: don't run it into a shared log. A source that can't be read shows as n/a
 # (e.g. the cluster is down), the rest still print.
+# --if-tty: print only to a terminal (make up's last step), else just say where to find them, so the
+# passwords never land in a pipe, a CI log or the make up log file.
 set -uo pipefail
+
+if [[ "${1:-}" == --if-tty && ! -t 1 ]]; then
+  echo "Lab logins: make logins (not printed here: output isn't a terminal)"; exit 0
+fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export PATH="${ROOT}/.tools/bin:${PATH}"

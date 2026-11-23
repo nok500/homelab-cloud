@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Bottom box of the lab TUI (scripts/tui.sh).
 #   talos-pane.sh         talosctl dashboard for all nodes, restarted whenever it exits or the lab comes back
-#   talos-pane.sh --up    first runs the build (make build) right here, then switches to the dashboard
+#   talos-pane.sh --up    first runs the build (make build) right here, shows the logins, then the dashboard
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -23,8 +23,11 @@ if [[ "${1:-}" == "--up" ]]; then
   took=$(((SECONDS - start) / 60))m$(((SECONDS - start) % 60))s
   echo "${rc} ${took} ${log}" >"${STATUS_FILE}"
   if ((rc == 0)); then
-    printf '\n\033[32m✔ make up finished in %s.\033[0m Switching to the Talos dashboard in 10 s (Enter: now).\n' "${took}"
-    read -r -t 10 _ || true
+    printf '\n\033[32m✔ make up finished in %s.\033[0m\n\n' "${took}"
+    # last step: the logins. Printed here, after script(1) has closed the log, so they never land in it.
+    "${ROOT}/scripts/logins.sh" --if-tty
+    printf '\nEnter: switch to the Talos dashboard (clears this screen; make logins shows them again).\n'
+    read -r _ || true
   else
     printf '\n\033[31m✘ make up failed (exit %s) after %s.\033[0m Log: %s\n' "${rc}" "${took}" "${log}"
     printf 'Fix it, then run make up again (it reuses this TUI). Enter: open the Talos dashboard anyway.\n'

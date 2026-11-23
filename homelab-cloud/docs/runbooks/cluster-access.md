@@ -63,7 +63,7 @@ Talos has no SSH; everything goes through its API on port 50000 (allowed from `a
 
 ## After `make up`
 
-`make up` returns only once every Argo CD Application is Synced/Healthy (it prints what's still pending every
+`make up` ends by showing every lab login (`make logins`; only to a terminal, never into its log file). It returns only once every Argo CD Application is Synced/Healthy (it prints what's still pending every
 30 s; about 10–15 min after the cluster exists). Until then `https://*.lab.macpro` may fail: the wildcard
 certificate is the last link in the chain (ADR 0008). argocd-server logging `redis … connection refused`
 while it starts is normal: `argocd-redis` is its cache and comes up at the same time.

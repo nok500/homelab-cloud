@@ -77,9 +77,9 @@ plan: images init ## Terraform plan for the whole lab
 .PHONY: up build
 # From a terminal, make up runs the build inside the lab TUI (bottom box) and leaves you in the TUI.
 # NO_TUI=1, or no terminal (CI, pipes), runs the plain build.
-up: ## Build everything (VPC, OPNsense, Talos VMs, cluster) and watch it in the TUI; NO_TUI=1 for plain output
+up: ## Build everything (VPC, OPNsense, Talos VMs, cluster) and watch it in the TUI, then show the logins; NO_TUI=1 for plain output
 	@if [[ -t 0 && -t 1 && -z "$${NO_TUI:-}" ]] && command -v tmux >/dev/null; then scripts/tui.sh --up; \
-	else $(MAKE) --no-print-directory build; fi
+	else $(MAKE) --no-print-directory build && scripts/logins.sh --if-tty; fi
 
 build: host route-ensure cluster identity ## The build behind make up, without the TUI
 

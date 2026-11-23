@@ -84,7 +84,7 @@ if [[ "${MODE}" == "--up" && -f "${STATUS_FILE}" ]]; then
   read -r rc took log <"${STATUS_FILE}" || true
   case "${rc}" in
     running) echo "make up is still running in the TUI (make tui to reattach)" ;;
-    0) echo "make up finished in ${took} (log: ${log#"${ROOT}"/})" ;;
+    0) echo "make up finished in ${took} (log: ${log#"${ROOT}"/})"; echo; "${ROOT}/scripts/logins.sh" --if-tty ;;
     *) echo "make up failed (exit ${rc}) after ${took}; log: ${log}" >&2; exit "${rc}" ;;
   esac
 fi
