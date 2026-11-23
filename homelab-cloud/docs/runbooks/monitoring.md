@@ -10,11 +10,16 @@ Design: [ADR 0009](../decisions/0009-lab-tui.md). Layout: [docs/img/tui-layout.p
 | Build the lab and watch it | `make up` (from a terminal it opens the TUI and builds in the bottom box) |
 | Plain build, no TUI | `NO_TUI=1 make up`, or `make build` |
 | Leave it running in the background | tmux prefix (default `Ctrl-b`), then `d` |
-| Close it | `make tui-kill` |
+| Close it | `make tui-kill` (inside tmux: the boxes in the current window, plus any `homelab` session) |
 
 Use a terminal of at least 160×45. In the TUI, click a box to focus it, prefix `z` zooms the focused box
 (again to unzoom), and the Talos dashboard takes its own keys when focused (F2 Monitor, F3 Resources, ←/→ switch
-node). Inside an existing tmux, `make tui` switches your client to the `homelab` session instead of nesting.
+node).
+
+**Inside your own tmux**, `make tui` (and `make up`) build the six boxes as splits of your current window instead
+of a separate session: your pane stays at the bottom as a shell, your session's settings are left alone. Run it
+again in that window to focus the TUI (`make up` restarts the build in its bottom box); `make tui-kill` closes the
+boxes and keeps your pane. A `make up` already running in the `homelab` session wins: you're switched to it.
 
 ## Reading it
 
