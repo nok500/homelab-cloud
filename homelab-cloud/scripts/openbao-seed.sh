@@ -75,9 +75,16 @@ for key, gen in fixed.items():
 data["harbor-s3-access-key-id"] = b64(garage["harbor_key_id"].encode())
 data["harbor-s3-secret-access-key"] = b64(garage["harbor_secret_key"].encode())
 
-# Token-signing key pair (core signs registry tokens with it): RSA 4096, self-signed, 10 years.
+# Token-signing key pair (core signs registry tokens with it): RSA 4096, self-signed, 10 years. The key must
+# be PKCS#1 (PEM type RSA PRIVATE KEY): Harbor's token service rejects PKCS#8 ("unable to get PrivateKey from
+# PEM type: PRIVATE KEY", found on first deploy 2026-11-23), so an older PKCS#8 value is re-encoded.
+from cryptography.hazmat.primitives import serialization as _ser
+def pkcs1(pem):
+    k = _ser.load_pem_private_key(pem, password=None)
+    return k.private_bytes(_ser.Encoding.PEM, _ser.PrivateFormat.TraditionalOpenSSL, _ser.NoEncryption())
 if "harbor-token-key" in old and "harbor-token-cert" in old:
-    data["harbor-token-key"], data["harbor-token-cert"] = old["harbor-token-key"], old["harbor-token-cert"]
+    data["harbor-token-key"] = b64(pkcs1(base64.b64decode(old["harbor-token-key"])))   # same key, PKCS#1
+    data["harbor-token-cert"] = old["harbor-token-cert"]
 else:
     import datetime
     from cryptography import x509
@@ -90,7 +97,8 @@ else:
     cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(k.public_key())
             .serial_number(x509.random_serial_number()).not_valid_before(now)
             .not_valid_after(now + datetime.timedelta(days=3650)).sign(k, hashes.SHA256()))
-    data["harbor-token-key"] = b64(k.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+    data["harbor-token-key"] = b64(k.private_bytes(serialization.Encoding.PEM,
+                                                   serialization.PrivateFormat.TraditionalOpenSSL,
                                                    serialization.NoEncryption()))
     data["harbor-token-cert"] = b64(cert.public_bytes(serialization.Encoding.PEM))
 

@@ -277,18 +277,30 @@ push_image() {
       "${REG}/${TEST_REPO}:1.37.0" --platform linux/amd64 >/dev/null 2>&1
 }
 check "push: busybox:1.37.0 -> ${REG}/${TEST_REPO}:1.37.0 (crane, as admin)" retry 3 10 push_image
+# Read first, queue a scan only when there's none yet (or it failed): re-queuing on every try reset the status
+# to Running each time, so the check never saw Success (2026-11-23)
 scanned() {
-  local a="https://${REG}/api/v2.0/projects/library/repositories/verify-busybox/artifacts/1.37.0"
-  hapi -X POST "${a}/scan" -o /dev/null 2>/dev/null   # (re)queue; 412 while one runs is fine
-  hapi "${a}?with_scan_overview=true" | python3 -c '
+  local a="https://${REG}/api/v2.0/projects/library/repositories/verify-busybox/artifacts/1.37.0" st
+  st="$(hapi "${a}?with_scan_overview=true" | python3 -c '
 import json,sys; o=(json.load(sys.stdin).get("scan_overview") or {})
-sys.exit(not any(v.get("scan_status") == "Success" for v in o.values()))'
+print(next((v.get("scan_status") for v in o.values()), "none"))')"
+  [[ "${st}" == Success ]] && return 0
+  [[ "${st}" == none || "${st}" == Error || "${st}" == Stopped ]] && hapi -X POST "${a}/scan" -o /dev/null 2>/dev/null
+  return 1
 }
-check "Trivy scanned it (scan status Success)" retry 30 10 scanned
+# up to 10 min: before its first scan Trivy downloads its vulnerability DB (that alone took >5 min on 2026-11-23)
+check "Trivy scanned it (scan status Success)" retry 60 10 scanned
 PULL_OVERRIDES='{"spec":{"securityContext":{"runAsNonRoot":true,"runAsUser":65534,"seccompProfile":{"type":"RuntimeDefault"}},"containers":[{"name":"pull","image":"'"${REG}/${TEST_REPO}"':1.37.0","command":["echo","pulled-from-harbor"],"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}}}]}}'
+# no `kubectl run -i`: echo exits before the attach, so its output (and the --rm) would be lost; run the pod,
+# wait for it to succeed, then read its log
 pod_pull() {
-  kubectl run "verify-pull-$$" --rm -i --restart=Never --quiet --image="${REG}/${TEST_REPO}:1.37.0" \
-    --image-pull-policy=Always --overrides="${PULL_OVERRIDES}" --pod-running-timeout=2m 2>/dev/null | grep -q pulled-from-harbor
+  local p="verify-pull-$$" ok=1
+  kubectl run "${p}" --restart=Never --image="${REG}/${TEST_REPO}:1.37.0" --image-pull-policy=Always \
+    --overrides="${PULL_OVERRIDES}" >/dev/null 2>&1 &&
+    kubectl wait --for=jsonpath='{.status.phase}'=Succeeded "pod/${p}" --timeout=120s >/dev/null 2>&1 &&
+    kubectl logs "${p}" 2>/dev/null | grep -q pulled-from-harbor && ok=0
+  kubectl delete pod "${p}" --wait=false >/dev/null 2>&1
+  return "${ok}"
 }
 check "a pod pulls ${REG}/${TEST_REPO}:1.37.0 (containerd trusts the lab CA for the registry)" retry 3 10 pod_pull
 unset HARBOR_ADMIN

@@ -42,6 +42,17 @@ self-signed, 10 years), `harbor-s3-*` (from `host/garage/secrets.enc.yaml`), `ke
 - `helm template` twice with the lab values: identical output.
 - The Talos document: `talosctl patch --dry-run` accepted it, no reboot.
 
+## Found on first deploy
+
+- Pushes failed: `/service/token` answered 500, `unable to get PrivateKey from PEM type: PRIVATE KEY`. Harbor's
+  token service only reads a PKCS#1 key (PEM type `RSA PRIVATE KEY`); the seed had made PKCS#8. `openbao-seed.sh`
+  now writes PKCS#1 and re-encodes an existing PKCS#8 value (same key and certificate). The local tests never
+  touched the token key: the registry test runs without core, and a chart render can't judge its content.
+- Two `make verify` checks were wrong, not Harbor: the pod-pull check used `kubectl run -i`, whose attach comes
+  after `echo` has already exited (output lost, pod left behind), and the scan check re-queued a scan on every
+  try, resetting the status to `Running` each time. Now: run, wait for `Succeeded`, read the log; and queue a
+  scan only when there is none. Trivy's first scan waits for its vulnerability DB download (more than 5 min).
+
 ## Verification
 
 `make verify` section 11: every Harbor component Ready; `harbor-db` healthy, 2 instances, archiving; the health
