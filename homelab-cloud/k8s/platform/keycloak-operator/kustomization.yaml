@@ -3,12 +3,16 @@
 # release tag, by URL. The Keycloak CRD alone is ~520 KB, over the repo's 512 KB file limit, so it isn't
 # vendored. The operator watches only its own namespace (keycloak), where the Keycloak CR lives too.
 # Images are pinned by digest: quay re-pushes the 26.8.2 tag for base-image fixes (four builds so far).
+# All four CRDs, as upstream's own kubernetes/kustomization.yml lists them: the operator starts a controller
+# per CRD and crash-loops if one is missing (2026-11-23: keycloaksamlclients 404, no Keycloak pod, SSO 500).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: keycloak
 resources:
-  - https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/26.8.2/kubernetes/keycloaks.k8s.keycloak.org-v1.yml
+  - https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/26.8.2/kubernetes/keycloakoidcclients.k8s.keycloak.org-v1.yml
   - https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/26.8.2/kubernetes/keycloakrealmimports.k8s.keycloak.org-v1.yml
+  - https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/26.8.2/kubernetes/keycloaks.k8s.keycloak.org-v1.yml
+  - https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/26.8.2/kubernetes/keycloaksamlclients.k8s.keycloak.org-v1.yml
   - https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/26.8.2/kubernetes/kubernetes.yml
 patches:
   - target:

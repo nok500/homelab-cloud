@@ -52,6 +52,13 @@ Against the pinned 26.8.2 image in Docker on voodoo, with the stack on local sta
 - Found on the way: Keycloak's session cookie is `Secure`, so over plain HTTP a client never sends it back
   (`cookie_not_found`). Only a test artifact here: every real hop is HTTPS.
 
+## Found on first deploy
+
+- The operator runs a controller per CRD, including the new `KeycloakOIDCClient` and `KeycloakSAMLClient`.
+  Only two of the four CRDs were installed, so it crash-looped on `keycloaksamlclients` (404), never created the
+  Keycloak pod, and `sso.lab.macpro` answered 500 (a route with no backend). Now all four, as upstream's
+  `kubernetes/kustomization.yml` lists them. The Docker test ran Keycloak alone, so it couldn't catch this.
+
 ## Verification
 
 `make verify` section 10: operator rolled out, Keycloak CR Ready, `keycloak-db` healthy with 2 instances and
