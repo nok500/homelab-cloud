@@ -18,7 +18,7 @@
 | Grafana login | **Keycloak OIDC** (client `grafana`, PKCE), group **`grafana-admins`** → Admin, others Viewer; the local `admin` stays as break-glass; no persistence | Same IdP as Argo CD and Harbor. Users are recreated at login, dashboards and datasources are provisioned, so the SQLite file holds nothing worth keeping |
 | `kubectl top` | **metrics-server 0.9.0** (chart 3.14.0), verifying kubelet TLS | The resource metrics API (HPA, `kubectl top`, the TUI) |
 | Kubelet certificates | Talos `KubeletConfig` **`serverTLSBootstrap: true`** + **kubelet-serving-cert-approver v0.12.1** | Kubelets get serving certificates signed by the cluster CA instead of self-signed ones, so metrics-server and Prometheus verify them. No `--kubelet-insecure-tls`, no `insecureSkipVerify` on the kubelet scrape. The approver checks each CSR's names and IPs against the node |
-| Control-plane metrics | Talos: controller manager and scheduler `bind-address: 0.0.0.0`, etcd `listen-metrics-urls: http://0.0.0.0:2381`; the chart scrapes `10.10.1.20` | Talos binds them to localhost by default. The controller manager and scheduler still require an authorized token; their serving certificates are self-signed by the components, so those two scrapes skip TLS verification. etcd's metrics port serves `/metrics` and `/health` only |
+| Control-plane metrics | Talos: controller manager and scheduler `bind-address: 0.0.0.0`, etcd `listen-metrics-urls: http://0.0.0.0:2381`; scraped by static **ScrapeConfigs** on `10.10.1.20` (`k8s/platform/monitoring/extras/scrapeconfigs.yaml`), the chart's Services for them off | Talos binds them to localhost by default. The controller manager and scheduler still require an authorized token; their serving certificates are self-signed by the components, so those two scrapes skip TLS verification. etcd's metrics port serves `/metrics` and `/health` only. Not the chart's Services: they need hand-written `Endpoints`, which Argo CD doesn't sync (see below) |
 | Argo CD metrics | `metrics.enabled` in Argo CD's chart (Services only); the ServiceMonitors and Argo CD's upstream dashboard (v3.6.2) live in `k8s/platform/monitoring/extras` | The bootstrap installs Argo CD's chart before the ServiceMonitor CRD exists |
 | Operator webhook | `admissionWebhooks.certManager.enabled` (cert-manager issues its certificate), `caBundle` ignored in Argo CD's diff | Instead of the chart's create/patch hook Jobs |
 
@@ -48,6 +48,25 @@ with the VMs.
 - All four charts render with the lab values (`helm template`): the Grafana HTTPRoute on the lab Gateway, the
   kubelet scrape verifying against `kube-root-ca.crt`, the operator's Certificates instead of hook Jobs.
 
+## Found on first deploy
+
+- **metrics-server not Ready (probe 500) right after the push**: the kubelets still had self-signed certificates
+  (`doesn't contain any IP SANs`), because the Talos change was held back until the approver ran. After
+  `scripts/tf.sh talos apply` all three kubelets got approved CA-signed certificates within seconds, no reboot.
+- **etcd, controller-manager and scheduler targets missing**: the chart scrapes them through selector-less
+  Services with hand-written `Endpoints`, and Argo CD excludes `Endpoints`/`EndpointSlice` from syncing by
+  default (`resource.exclusions` in argocd-cm), so there was nothing to scrape. Replaced by static ScrapeConfigs
+  with the same job names (the chart's rules and dashboards still match). Checked from a pod: both HTTPS ports
+  answer 200 with Prometheus' token and 403 without it.
+- **etcd's metrics listener needs an etcd restart**, and Talos won't restart etcd through its API ("doesn't
+  support restart operation"). A machine-config change to etcd's arguments takes effect at the control plane's
+  next boot. Fresh builds have it from the start; the live lab got it at its next reboot.
+- **Events missing in Loki**: they arrived, under Alloy's default `job="loki.source.kubernetes_events"`; the
+  config now sets the conventional `job_name = "integrations/kubernetes/eventhandler"`.
+- **Verify's test alert never left**: `kubectl create --raw` through the API-server proxy is refused by
+  Alertmanager (415, content type). Verify now uses `amtool` in the Alertmanager pod; the path itself worked
+  (Alertmanager → ntfy in about 40 s, its `group_wait` is 30 s).
+
 ## Verification
 
 `make verify` section 12:
@@ -65,7 +84,6 @@ with the VMs.
   Alloy 128 MiB, the rest is small ([ADR 0002](0002-vm-sizing.md) log).
 - Until the approver runs, a freshly booted node's kubelet has no serving certificate: `kubectl logs`/`exec` and
   metrics wait for it. The approver is in sync wave 0, so this window is short.
-- The control-plane scrape targets name `10.10.1.20` in the chart values; a second control plane adds its IP
-  there.
+- The control-plane ScrapeConfigs name `10.10.1.20`; a second control plane adds its IP there.
 - Alloy reads logs through the API server. If log volume grows a lot (Phase 5 Falco and Wazuh), switch to a
   DaemonSet reading `/var/log/pods`, which needs a hostPath and privileged Pod Security for its namespace.

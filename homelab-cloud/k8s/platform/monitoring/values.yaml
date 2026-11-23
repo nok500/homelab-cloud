@@ -17,34 +17,18 @@ defaultRules:
   rules:
     kubeProxy: false
 
-# The control plane's metrics listen on the node since terraform/talos binds them to 0.0.0.0. Talos runs etcd
-# as a system service, not a pod, so the chart can't find it by label: the single control plane's IP instead
-# (fixed by terraform/host; a second control plane would be added here).
+# The control plane's metrics listen on the node since terraform/talos binds them to 0.0.0.0. They're scraped
+# by static ScrapeConfigs in extras/scrapeconfigs.yaml: the chart's Services need hand-written Endpoints, which
+# Argo CD doesn't sync (excluded by default). The components stay enabled for their rules and dashboards.
 kubeEtcd:
-  endpoints: [10.10.1.20]
-  service:
-    port: 2381
-    targetPort: 2381
-  serviceMonitor:
-    scheme: http   # etcd's metrics listener (listen-metrics-urls): /metrics and /health only
+  service: {enabled: false}
+  serviceMonitor: {enabled: false}
 kubeControllerManager:
-  endpoints: [10.10.1.20]
-  service:
-    port: 10257
-    targetPort: 10257
-  serviceMonitor:
-    https: true
-    # its serving certificate is self-signed by the component itself (not by the cluster CA); the scrape still
-    # authenticates with Prometheus' service-account token
-    insecureSkipVerify: true
+  service: {enabled: false}
+  serviceMonitor: {enabled: false}
 kubeScheduler:
-  endpoints: [10.10.1.20]
-  service:
-    port: 10259
-    targetPort: 10259
-  serviceMonitor:
-    https: true
-    insecureSkipVerify: true   # same as the controller manager
+  service: {enabled: false}
+  serviceMonitor: {enabled: false}
 # Kubelets have CA-signed serving certificates (Talos serverTLSBootstrap + kubelet-serving-cert-approver), so
 # verify them against the cluster CA instead of the chart's default insecureSkipVerify.
 kubelet:

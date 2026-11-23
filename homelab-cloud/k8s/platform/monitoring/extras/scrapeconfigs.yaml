@@ -1,0 +1,51 @@
+---
+# The control plane's metrics, scraped from the node directly (ADR 0014). The chart's way is a selector-less
+# Service plus hand-written Endpoints, but Argo CD excludes Endpoints/EndpointSlice from syncing by default
+# (argocd-cm resource.exclusions), so those targets never existed (2026-11-23, verify: "missing"). Static
+# ScrapeConfigs need neither. Job names match the chart's, so its rules and dashboards still apply.
+# Targets: the single control plane (terraform/host fixes 10.10.1.20); terraform/talos binds these ports to it.
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: ScrapeConfig
+metadata:
+  name: kube-etcd
+spec:
+  jobName: kube-etcd
+  scheme: HTTP   # etcd's listen-metrics-urls listener: /metrics and /health only
+  staticConfigs:
+    - targets: [10.10.1.20:2381]
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: ScrapeConfig
+metadata:
+  name: kube-controller-manager
+spec:
+  jobName: kube-controller-manager
+  scheme: HTTPS
+  # its serving certificate is self-signed by the component, not by the cluster CA; the request still has to
+  # carry Prometheus' service-account token (authorized for /metrics)
+  tlsConfig:
+    insecureSkipVerify: true
+  authorization:
+    type: Bearer
+    credentials:
+      name: kps-kube-prometheus-stack-prometheus-token   # the chart's token Secret for Prometheus
+      key: token
+  staticConfigs:
+    - targets: [10.10.1.20:10257]
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: ScrapeConfig
+metadata:
+  name: kube-scheduler
+spec:
+  jobName: kube-scheduler
+  scheme: HTTPS
+  tlsConfig:
+    insecureSkipVerify: true   # same as the controller manager
+  authorization:
+    type: Bearer
+    credentials:
+      name: kps-kube-prometheus-stack-prometheus-token
+      key: token
+  staticConfigs:
+    - targets: [10.10.1.20:10259]

@@ -368,18 +368,17 @@ loki_s3() {
 check "Loki stores into Garage (bucket loki has objects)" retry 18 10 loki_s3
 # The alert path end to end: a test alert into Alertmanager's API, then it must show up in ntfy topic lab-alerts
 # (read as labadmin, through the Gateway). Ends after 2 min, so it resolves by itself.
-AM="/api/v1/namespaces/monitoring/services/http:kps-kube-prometheus-stack-alertmanager:9093/proxy"
 NTFY_PW="$(SOPS_AGE_KEY_FILE="${ROOT}/.cache/age/key.txt" sops --decrypt \
   --extract '["data"]["monitoring-ntfy-labadmin-password"]' "${ROOT}/k8s/platform/openbao/seed.enc.yaml" | base64 -d)"
 ALERT_ID="VerifyTestAlert$$"
 since="$(date +%s)"
+# amtool inside the Alertmanager pod: `kubectl create --raw` through the API proxy can't set the JSON content type
+# Alertmanager wants (415 UnsupportedMediaType, 2026-11-23)
 send_alert() {
-  python3 -c 'import json,sys,datetime as d
-n=d.datetime.now(d.timezone.utc); f=lambda t: t.strftime("%Y-%m-%dT%H:%M:%SZ")
-print(json.dumps([{"labels": {"alertname": sys.argv[1], "severity": "info", "namespace": "verify"},
-  "annotations": {"summary": "make verify: test alert, resolves by itself"},
-  "startsAt": f(n), "endsAt": f(n + d.timedelta(minutes=2))}]))' "${ALERT_ID}" \
-    | kubectl create --raw "${AM}/api/v2/alerts" -f - >/dev/null
+  kubectl -n monitoring exec alertmanager-kps-kube-prometheus-stack-alertmanager-0 -c alertmanager -- \
+    amtool --alertmanager.url=http://localhost:9093 alert add "alertname=${ALERT_ID}" severity=info namespace=verify \
+    --annotation='summary="make verify: test alert, resolves by itself"' \
+    --end="$(date -u -d '+2 min' +%Y-%m-%dT%H:%M:%SZ)" >/dev/null 2>&1
 }
 in_ntfy() {
   curl -fsS -m 10 --cacert "${ROOT_CA}" -u "labadmin:${NTFY_PW}" "https://ntfy.lab.macpro/lab-alerts/json?poll=1&since=${since}" \

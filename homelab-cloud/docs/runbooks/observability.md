@@ -37,7 +37,7 @@ kubectl get csr | grep kubelet-serving            # Approved,Issued for every no
 | Symptom | Cause / fix |
 |---|---|
 | `kubectl logs`/`exec` fail with a TLS error, or `kubectl top` says metrics not available | Kubelet serving CSRs not approved yet: `kubectl get csr`; is `kubelet-serving-cert-approver` running? `kubectl -n kubelet-serving-cert-approver logs deploy/kubelet-serving-cert-approver` |
-| Targets kube-etcd / kube-scheduler / kube-controller-manager down | The Talos patch isn't applied (`talosctl -n 10.10.1.20 get mc -o yaml \| grep -e bind-address -e listen-metrics`): `scripts/tf.sh talos apply` |
+| Targets kube-etcd / kube-scheduler / kube-controller-manager down | They're static ScrapeConfigs (`k8s/platform/monitoring/extras/scrapeconfigs.yaml`) on the node's ports, which the Talos patch opens: check it's applied (`talosctl -n 10.10.1.20 get mc -o yaml \| grep -e bind-address -e listen-metrics`), else `scripts/tf.sh talos apply`. **etcd** only picks up a changed argument at the control plane's next boot (Talos can't restart etcd on its own): `talosctl -n 10.10.1.20 netstat -l \| grep 2381` |
 | Grafana login loops or `invalid_client` | Client secret differs between Keycloak and Grafana: OpenBao `secret/monitoring/grafana-oidc` vs the seed, then `make identity` |
 | Grafana: "x509: certificate signed by unknown authority" on login | The `lab-root-ca` Secret (from `scripts/pki-render.py`) isn't mounted: check `kubectl -n monitoring get secret lab-root-ca` |
 | No logs in Loki | `kubectl -n monitoring logs deploy/alloy`; then Loki: `kubectl -n monitoring logs sts/loki` (S3 errors point to Garage: `make verify` section 8) |

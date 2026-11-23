@@ -52,8 +52,10 @@ alloy:
         forward_to = [loki.write.lab.receiver]
       }
 
-      // Kubernetes events (scheduling, pulls, OOM kills, probe failures) as log lines, job="integrations/kubernetes/eventhandler"
+      // Kubernetes events (scheduling, pulls, OOM kills, probe failures) as log lines. job_name: the
+      // conventional label (Alloy's default is "loki.source.kubernetes_events")
       loki.source.kubernetes_events "cluster" {
+        job_name   = "integrations/kubernetes/eventhandler"
         log_format = "logfmt"
         forward_to = [loki.write.lab.receiver]
       }
