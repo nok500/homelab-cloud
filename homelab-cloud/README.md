@@ -96,6 +96,7 @@ make route    # sudo: route 10.10.0.0/16 via OPNsense (make up/start add it when
 make db-restore-test  # point-in-time restore of the demo database from Garage, checked row by row
 make identity # Keycloak realm, users, groups, OIDC clients (terraform/identity; make up runs it)
 make sso-password     # password of labadmin, the SSO user (Argo CD: LOG IN VIA KEYCLOAK)
+make logins   # every lab login in one table: URL, user, password (prints secrets)
 make verify   # cluster acceptance checks (verify-host: Phase 1, needs the test VM)
 make shutdown # safe stop of all VMs (make poweroff: also the Mac Pro; make start: back up)
 make destroy  # tear it down

@@ -23,7 +23,7 @@ Prerequisites on the workstation: the lab route (`make up`/`make start` add it w
 | Password | `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' \| base64 -d; echo` |
 
 The initial password is random per install, so it changes after every `make destroy && make up`.
-Day to day, use **LOG IN VIA KEYCLOAK**: user `labadmin`, password from `make sso-password` ([identity.md](identity.md)). The local `admin` stays as break-glass for when Keycloak is down.
+Day to day, use **LOG IN VIA KEYCLOAK**: user `labadmin`, password from `make sso-password` ([identity.md](identity.md)); every lab login at once: `make logins`. The local `admin` stays as break-glass for when Keycloak is down.
 
 Optional hardening, per the Argo CD docs: change the password, then delete the bootstrap secret:
 

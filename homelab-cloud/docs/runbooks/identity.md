@@ -11,8 +11,10 @@ operator in `k8s/platform/keycloak-operator`); the realm `lab` and everything in
 | Lab user | `labadmin` (group `argocd-admins`), password `make sso-password` |
 | Argo CD | https://argocd.lab.macpro → **LOG IN VIA KEYCLOAK** |
 | Account page | https://sso.lab.macpro/realms/lab/account |
-| Admin console | https://sso.lab.macpro/admin (realm **master**, user `admin`, password: `SOPS_AGE_KEY_FILE=.cache/age/key.txt .tools/bin/sops -d --extract '["data"]["keycloak-admin-password"]' k8s/platform/openbao/seed.enc.yaml \| base64 -d`) |
+| Admin console | https://sso.lab.macpro/admin (realm **master**, user `admin`, password from `make logins`) |
 | Issuer | `https://sso.lab.macpro/realms/lab` |
+
+All logins at once (Argo CD, Keycloak, OpenBao, Garage UI): `make logins`.
 
 Changes made in the admin console to anything Terraform manages are reverted by the next `make identity`.
 

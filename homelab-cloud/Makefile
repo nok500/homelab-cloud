@@ -104,6 +104,10 @@ cluster: init ## Talos config + bootstrap (terraform/talos), then Cilium + Argo 
 	$(TF_TALOS) apply -input=false $(TF_APPROVE)
 	scripts/bootstrap-cluster.sh
 
+.PHONY: logins
+logins: ## Every lab login: URL, user and password (prints secrets; Argo CD local admin needs the cluster up)
+	@scripts/logins.sh
+
 .PHONY: identity sso-password
 identity: ## Keycloak realm, users, groups, OIDC clients (terraform/identity; Keycloak must be up)
 	$(TF_IDENTITY) init -input=false
