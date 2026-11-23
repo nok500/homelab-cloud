@@ -17,6 +17,7 @@ import os
 import re
 import ssl
 import sys
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -32,6 +33,7 @@ def main() -> int:
     jar = http.cookiejar.CookieJar()
     opener = urllib.request.build_opener(
         urllib.request.HTTPSHandler(context=ctx), urllib.request.HTTPCookieProcessor(jar))
+    opener.addheaders = [("Accept", "text/html,application/json")]   # like a browser
 
     # 1. Argo CD sends us to Keycloak
     with opener.open(f"{ARGOCD}/auth/login?return_url={urllib.parse.quote(ARGOCD + '/applications')}", timeout=20) as r:
@@ -47,8 +49,13 @@ def main() -> int:
 
     # 2+3. submit the form; Keycloak -> /auth/callback -> Argo CD session cookie
     form = urllib.parse.urlencode({"username": user, "password": password, "credentialId": ""}).encode()
-    with opener.open(html.unescape(m.group(1)), data=form, timeout=20) as r:
-        final = r.geturl()
+    # The chain ends on Argo CD's UI page (/applications); only the session cookie set on /auth/callback
+    # matters, so an error on that last page is not a failure (2026-11-23: it 404'd to a non-browser client).
+    try:
+        with opener.open(html.unescape(m.group(1)), data=form, timeout=20) as r:
+            final = r.geturl()
+    except urllib.error.HTTPError as e:
+        final = f"{e.url} (HTTP {e.code})"
     if not any(c.name.startswith("argocd.token") for c in jar):
         print(f"step 2/3: no Argo CD session after the login (ended on {final})")
         return 1

@@ -63,6 +63,12 @@ Against the pinned 26.8.2 image in Docker on voodoo, with the stack on local sta
   start"). `spec.startOptimized: false`: Keycloak runs the build step itself at each start, about a minute
   slower. A custom pre-built image is the later optimization. (The Docker test used `start-dev`, which never
   takes that path.)
+- `make verify`'s SSO check followed the redirect chain to its end, Argo CD's UI page `/applications`, which
+  answers 404 to a non-browser client: a false FAIL although the login had worked (argocd-server logged "Web
+  login successful"). The script now sends a browser's `Accept` header and only judges the session cookie.
+
+Result (2026-11-23, live lab): `make identity` created 8 resources, a second plan is empty, and `make verify`
+passed **52/52**, including the real SSO login (`labadmin`, group `argocd-admins`, 19 Applications visible).
 
 ## Verification
 
