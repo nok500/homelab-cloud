@@ -1,0 +1,4 @@
+# BuildKit daemon config for the build pods (ADR 0015), mounted at /etc/buildkit/buildkitd.toml.
+# Harbor's certificate comes from the lab CA (step-ca, ADR 0007): trust it for pushes and the registry cache.
+[registry."registry.lab.macpro"]
+  ca = ["/etc/lab-ca/ca.crt"]

@@ -1,0 +1,42 @@
+---
+# The Argo Workflows UI's admin account (argo/argo-admin, mapped from Keycloak group argo-workflows-admins,
+# k8s/platform/argo-workflows/extras): what it may do in ci.
+# Full control of workflows in ci only (the chart's aggregated argo-workflows-admin ClusterRole, bound per
+# namespace), plus read on the workflow pods' logs
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argo-admin
+  namespace: ci
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argo-workflows-admin
+subjects:
+  - kind: ServiceAccount
+    name: argo-admin
+    namespace: argo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argo-admin-pod-logs
+  namespace: ci
+rules:
+  - apiGroups: [""]
+    resources: [pods, pods/log, events]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argo-admin-pod-logs
+  namespace: ci
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argo-admin-pod-logs
+subjects:
+  - kind: ServiceAccount
+    name: argo-admin
+    namespace: argo

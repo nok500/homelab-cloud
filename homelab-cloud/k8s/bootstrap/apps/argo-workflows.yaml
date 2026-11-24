@@ -1,0 +1,42 @@
+---
+# Argo Workflows v4.1.6 (chart 2.0.18), the CI engine (k8s/platform/argo-workflows, ADR 0015): controller +
+# server (https://workflows.lab.macpro, Keycloak SSO) in namespace argo, workflows in namespace ci. After
+# Keycloak (wave 4) and Harbor (wave 5); the ci namespace's own objects come in wave 7 (ci.yaml).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argo-workflows
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  project: default
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argo-workflows
+      targetRevision: 2.0.18
+      helm:
+        releaseName: argo-workflows
+        valueFiles:
+          - $values/homelab-cloud/k8s/platform/argo-workflows/values.yaml
+    - repoURL: git@github.com:nok500/lab.git
+      targetRevision: main
+      ref: values
+    # the SSO client Secret (ExternalSecret) and the admin service account Keycloak's group maps to
+    - repoURL: git@github.com:nok500/lab.git
+      targetRevision: main
+      path: homelab-cloud/k8s/platform/argo-workflows/extras
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true   # ServiceMonitor, ExternalSecret CRDs; RoleBindings into ci (wave 7)
+    retry:
+      limit: 10
+      backoff: {duration: 10s, factor: 2, maxDuration: 2m}

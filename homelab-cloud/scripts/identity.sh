@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# terraform/identity (ADR 0012): the Keycloak realm, users, groups and clients, as Terraform.
+# terraform/identity (ADR 0012): the Keycloak realm, users, groups and clients, as Terraform; plus Harbor's CI
+# project and push robot (ADR 0015).
 #   scripts/identity.sh <terraform args...>   e.g. init, plan, apply -auto-approve
 #   scripts/identity.sh forget                drop everything from the state (make destroy: the realm dies
 #                                             with the cluster, so there is nothing left to destroy)
@@ -11,6 +12,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export PATH="${ROOT}/.tools/bin:${PATH}"
 TF=("${ROOT}/scripts/tf.sh" identity)
 URL="https://sso.lab.macpro"
+HARBOR_URL="https://registry.lab.macpro"
 ROOT_CA="${ROOT}/k8s/platform/step-ca/config/root_ca.crt"
 
 if [[ "${1:-}" == forget ]]; then
@@ -29,8 +31,11 @@ TF_VAR_labadmin_password="$(seed keycloak-labadmin-password)"
 TF_VAR_argocd_client_secret="$(seed keycloak-argocd-client-secret)"
 TF_VAR_harbor_client_secret="$(seed keycloak-harbor-client-secret)"
 TF_VAR_grafana_client_secret="$(seed keycloak-grafana-client-secret)"
+TF_VAR_argo_workflows_client_secret="$(seed keycloak-argo-workflows-client-secret)"
+TF_VAR_harbor_admin_password="$(seed harbor-admin-password)"
+TF_VAR_harbor_ci_robot_secret="$(seed harbor-ci-robot-secret)"
 export TF_VAR_admin_password TF_VAR_labadmin_password TF_VAR_argocd_client_secret TF_VAR_harbor_client_secret \
-  TF_VAR_grafana_client_secret
+  TF_VAR_grafana_client_secret TF_VAR_argo_workflows_client_secret TF_VAR_harbor_admin_password TF_VAR_harbor_ci_robot_secret
 
 case "${1:-}" in
   plan|apply|refresh|import)
@@ -38,6 +43,11 @@ case "${1:-}" in
     until curl -fsS -m 10 -o /dev/null --cacert "${ROOT_CA}" "${URL}/realms/master/.well-known/openid-configuration"; do
       ((SECONDS > deadline)) && { echo "Keycloak at ${URL} not answering after 10 min" >&2; exit 1; }
       echo "  waiting for Keycloak at ${URL}"; sleep 10
+    done
+    # the Harbor provider (CI project + robot, ADR 0015) needs Harbor's API: healthy, every component
+    until curl -fsS -m 10 --cacert "${ROOT_CA}" "${HARBOR_URL}/api/v2.0/health" | grep -q '"status":"healthy"'; do
+      ((SECONDS > deadline)) && { echo "Harbor at ${HARBOR_URL} not healthy after 10 min" >&2; exit 1; }
+      echo "  waiting for Harbor at ${HARBOR_URL}"; sleep 10
     done ;;
 esac
 exec "${TF[@]}" "$@"

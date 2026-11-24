@@ -1,0 +1,37 @@
+---
+# Argo Events v1.9.11 (chart 2.4.28): the CI trigger's controller (k8s/platform/argo-events, ADR 0015), in
+# namespace argo-events. The EventBus, EventSource and Sensor live in namespace ci (ci.yaml, wave 7).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argo-events
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  project: default
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argo-events
+      targetRevision: 2.4.28
+      helm:
+        releaseName: argo-events
+        valueFiles:
+          - $values/homelab-cloud/k8s/platform/argo-events/values.yaml
+    - repoURL: git@github.com:nok500/lab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo-events
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true   # ServiceMonitor CRD
+    retry:
+      limit: 10
+      backoff: {duration: 10s, factor: 2, maxDuration: 2m}

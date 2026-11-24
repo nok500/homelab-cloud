@@ -1,0 +1,27 @@
+---
+# The bus between the EventSource and the Sensor: one JetStream (NATS) server, events in memory only. The only
+# events are 2-minute timer ticks, so losing them in a restart costs one poll; three servers (the default)
+# would buy nothing here.
+apiVersion: argoproj.io/v1alpha1
+kind: EventBus
+metadata:
+  name: default
+spec:
+  jetstream:
+    version: 2.10.29   # pinned by digest in k8s/platform/argo-events/values.yaml
+    replicas: 1
+    streamConfig: |
+      replicas: 1
+      maxAge: 1h
+    containerTemplate:
+      resources:
+        requests: {cpu: 10m, memory: 64Mi}
+        limits: {memory: 256Mi}
+    metricsContainerTemplate:
+      resources:
+        requests: {cpu: 5m, memory: 16Mi}
+        limits: {memory: 64Mi}
+    reloaderContainerTemplate:
+      resources:
+        requests: {cpu: 5m, memory: 16Mi}
+        limits: {memory: 64Mi}

@@ -6,6 +6,10 @@ terraform {
       source  = "keycloak/keycloak"
       version = "= 5.10.0" # 5.11.0 (2026-11-20) is under two weeks old
     }
+    harbor = {
+      source  = "goharbor/harbor"
+      version = "= 3.12.5" # 2026-09-14; the CI project and its push robot (ADR 0015)
+    }
   }
 
   # State in Garage on the Mac Pro host, like the other stacks (ADR 0010). Run via scripts/identity.sh,
@@ -36,4 +40,14 @@ provider "keycloak" {
   username            = "admin"
   password            = var.admin_password
   root_ca_certificate = file(var.root_ca_file)
+}
+
+# Harbor's API as its local admin (seed harbor-admin-password, ADR 0013): the CI project and robot (ADR 0015).
+# insecure = false: verify TLS. The provider has no CA option, so it uses the system trust store, where the lab
+# root is installed on voodoo (docs/bootstrap.md).
+provider "harbor" {
+  url      = var.harbor_url
+  username = "admin"
+  password = var.harbor_admin_password
+  insecure = false
 }

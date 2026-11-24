@@ -1,0 +1,169 @@
+---
+# ci-poll: started by the Sensor every 2 minutes (trigger.yaml). Reads main's commit from GitHub and submits a
+# ci-build workflow for it, once: the submit step is memoized on the commit, so later polls of the same commit
+# do nothing (no pod). The cache is the ConfigMap ci-submitted-commits; a rebuilt lab starts without it and
+# builds the current commit once.
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: ci-poll
+spec:
+  entrypoint: main
+  serviceAccountName: argo-workflow
+  activeDeadlineSeconds: 300
+  ttlStrategy:
+    secondsAfterSuccess: 600
+    secondsAfterFailure: 86400
+  synchronization:
+    mutexes:
+      - name: ci-poll   # one poll at a time, so two can't race to submit the same commit
+  volumes:
+    - name: tmp
+      emptyDir: {}
+  templates:
+    - name: main
+      steps:
+        - - name: resolve
+            template: resolve
+        - - name: submit
+            template: submit
+            arguments:
+              parameters:
+                - name: sha
+                  value: "{{steps.resolve.outputs.parameters.sha}}"
+
+    # The repo is public, so no key: git ls-remote over https. Fails unless it got a full commit hash.
+    - name: resolve
+      outputs:
+        parameters:
+          - name: sha
+            valueFrom: {path: /tmp/sha}
+      container:
+        image: docker.io/alpine/git:v2.54.0@sha256:6a1fdb962814ca11508ca8d1bab94375b5b7ac4e4a9a40981c29fc32c02f095d
+        command: [sh, -c]
+        args:
+          - git ls-remote https://github.com/nok500/lab.git refs/heads/main | cut -f1 | tee /tmp/sha | grep -Eq '^[0-9a-f]{40}$'
+        env:
+          - {name: HOME, value: /tmp}
+        volumeMounts:
+          - {name: tmp, mountPath: /tmp}
+        resources:
+          requests: {cpu: 10m, memory: 16Mi}
+          limits: {memory: 64Mi}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65532   # the image has no USER
+          runAsGroup: 65532
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities: {drop: [ALL]}
+          seccompProfile: {type: RuntimeDefault}
+
+    # apply, not create: idempotent if the cache is ever lost while the ci-build workflow still exists
+    - name: submit
+      inputs:
+        parameters:
+          - name: sha
+      memoize:
+        key: "{{inputs.parameters.sha}}"
+        maxAge: 8760h
+        cache:
+          configMap:
+            name: ci-submitted-commits
+      resource:
+        action: apply
+        manifest: |
+          apiVersion: argoproj.io/v1alpha1
+          kind: Workflow
+          metadata:
+            name: ci-build-{{inputs.parameters.sha}}
+            labels:
+              ci.lab.macpro/commit: "{{inputs.parameters.sha}}"
+          spec:
+            workflowTemplateRef:
+              name: ci-build
+            arguments:
+              parameters:
+                - name: sha
+                  value: "{{inputs.parameters.sha}}"
+---
+# ci-build: build and push the images for one commit. Milestone 2 builds ci/smoke only (a busybox image with one
+# RUN step, enough to prove the whole path); milestone 3 adds apps/sample-api and the scan/SBOM/sign steps.
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: ci-build
+spec:
+  entrypoint: main
+  serviceAccountName: argo-workflow
+  activeDeadlineSeconds: 1800
+  arguments:
+    parameters:
+      - name: sha
+  ttlStrategy:
+    secondsAfterSuccess: 86400
+    secondsAfterFailure: 259200
+  volumes:
+    - name: buildkitd-config
+      configMap: {name: buildkitd}
+    - name: lab-ca
+      secret: {secretName: lab-root-ca}
+    - name: docker-config
+      secret:
+        secretName: harbor-push
+        items: [{key: config.json, path: config.json}]
+    - name: buildkit-state
+      emptyDir: {}
+  templates:
+    - name: main
+      steps:
+        - - name: smoke
+            template: build-image
+            arguments:
+              parameters:
+                - {name: path, value: homelab-cloud/ci/smoke}
+                - {name: image, value: registry.lab.macpro/ci/smoke}
+
+    # Rootless BuildKit, no daemon: buildctl-daemonless.sh starts buildkitd for this one build, inside
+    # rootlesskit's user namespace. BuildKit fetches the context itself from GitHub at the exact commit.
+    #   --oci-worker-no-process-sandbox  build steps share buildkitd's PID namespace instead of getting their
+    #                                    own, which would need an unmasked /proc (Pod Security privileged)
+    #   registry cache                   layers survive between builds although every build pod starts empty
+    - name: build-image
+      inputs:
+        parameters:
+          - name: path    # Dockerfile directory in the repo
+          - name: image   # repository; the tag is the commit
+      container:
+        image: docker.io/moby/buildkit:v0.34.2-rootless@sha256:c8252268760e1baba80780d63d738ef9f260fb7c7c0973c78494cb9ddd99eda1
+        command: [buildctl-daemonless.sh]
+        args:
+          - build
+          - --frontend=dockerfile.v0
+          - --opt=context=https://github.com/nok500/lab.git#{{workflow.parameters.sha}}:{{inputs.parameters.path}}
+          - --output=type=image,name={{inputs.parameters.image}}:{{workflow.parameters.sha}},push=true
+          - --import-cache=type=registry,ref={{inputs.parameters.image}}:buildcache
+          - --export-cache=type=registry,ref={{inputs.parameters.image}}:buildcache,mode=max
+        env:
+          - {name: BUILDKITD_FLAGS, value: --oci-worker-no-process-sandbox --config=/etc/buildkit/buildkitd.toml}
+          - {name: DOCKER_CONFIG, value: /home/user/.docker}
+        volumeMounts:
+          - {name: buildkitd-config, mountPath: /etc/buildkit, readOnly: true}
+          - {name: lab-ca, mountPath: /etc/lab-ca, readOnly: true}
+          - {name: docker-config, mountPath: /home/user/.docker, readOnly: true}
+          - {name: buildkit-state, mountPath: /home/user/.local/share/buildkit}
+        resources:
+          requests: {cpu: 250m, memory: 256Mi}
+          limits: {memory: 2Gi}
+        # Rootless, unprivileged, and Pod Security `baseline`: uid 1000; the lab's Localhost seccomp profile
+        # (Docker's default + the user-namespace calls, terraform/talos/seccomp); privilege escalation stays
+        # allowed because rootlesskit maps uids through the setuid newuidmap/newgidmap helpers.
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          privileged: false
+          allowPrivilegeEscalation: true
+          seccompProfile:
+            type: Localhost
+            localhostProfile: profiles/buildkit-rootless.json

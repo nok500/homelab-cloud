@@ -54,10 +54,16 @@ resource "keycloak_group" "grafana_admins" {
   name     = "grafana-admins" # Grafana's role_attribute_path maps it to Admin, everyone else Viewer (ADR 0014)
 }
 
+resource "keycloak_group" "argo_workflows_admins" {
+  realm_id = keycloak_realm.lab.id
+  name     = "argo-workflows-admins" # the Argo Workflows server maps it to its admin service account (ADR 0015)
+}
+
 resource "keycloak_user_groups" "labadmin" {
-  realm_id  = keycloak_realm.lab.id
-  user_id   = keycloak_user.labadmin.id
-  group_ids = [keycloak_group.argocd_admins.id, keycloak_group.harbor_admins.id, keycloak_group.grafana_admins.id]
+  realm_id = keycloak_realm.lab.id
+  user_id  = keycloak_user.labadmin.id
+  group_ids = [keycloak_group.argocd_admins.id, keycloak_group.harbor_admins.id, keycloak_group.grafana_admins.id,
+  keycloak_group.argo_workflows_admins.id]
 }
 
 # ---- a `groups` claim for every client that asks for it ----
@@ -159,4 +165,59 @@ resource "keycloak_openid_client_default_scopes" "grafana" {
   realm_id       = keycloak_realm.lab.id
   client_id      = keycloak_openid_client.grafana.id
   default_scopes = ["acr", "basic", "email", "profile", "roles", "web-origins", keycloak_openid_client_scope.groups.name]
+}
+
+# ---- Argo Workflows (ADR 0015) ----
+resource "keycloak_openid_client" "argo_workflows" {
+  realm_id  = keycloak_realm.lab.id
+  client_id = "argo-workflows"
+  name      = "Argo Workflows"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  client_secret                = var.argo_workflows_client_secret
+  standard_flow_enabled        = true
+  direct_access_grants_enabled = false
+  implicit_flow_enabled        = false
+
+  root_url                        = var.argo_workflows_url
+  base_url                        = "/"
+  valid_redirect_uris             = ["${var.argo_workflows_url}/oauth2/callback"]
+  valid_post_logout_redirect_uris = ["${var.argo_workflows_url}/"]
+  web_origins                     = [var.argo_workflows_url]
+}
+
+resource "keycloak_openid_client_default_scopes" "argo_workflows" {
+  realm_id       = keycloak_realm.lab.id
+  client_id      = keycloak_openid_client.argo_workflows.id
+  default_scopes = ["acr", "basic", "email", "profile", "roles", "web-origins", keycloak_openid_client_scope.groups.name]
+}
+
+# ---- Harbor: where CI pushes (ADR 0015) ----
+# Project `ci`, private, every push scanned by Trivy. One project-level robot that can push and pull there and
+# nowhere else; its secret is seeded (OpenBao secret/ci/harbor-robot), so a rebuilt Harbor gets the same one.
+resource "harbor_project" "ci" {
+  name                   = "ci"
+  public                 = false
+  vulnerability_scanning = true
+}
+
+resource "harbor_robot_account" "ci_builder" {
+  name              = "builder" # full name robot$ci+builder
+  description       = "CI builds (Argo Workflows + BuildKit) push here; ADR 0015"
+  level             = "project"
+  secret_wo         = var.harbor_ci_robot_secret
+  secret_wo_version = 1 # bump to push a changed seed value
+  permissions {
+    kind      = "project"
+    namespace = harbor_project.ci.name
+    access {
+      action   = "push"
+      resource = "repository"
+    }
+    access {
+      action   = "pull"
+      resource = "repository"
+    }
+  }
 }

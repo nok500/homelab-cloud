@@ -299,4 +299,25 @@ server:
             }
           }
         }
+        # CI (ADR 0015)
+        request "argo-sso" {
+          operation = "update"
+          path      = "secret/data/argo/sso"
+          data = {
+            data = {
+              client-id     = "argo-workflows"
+              client-secret = { eval_type = "string", eval_source = "file", path = "/openbao/seed/keycloak-argo-workflows-client-secret" }
+            }
+          }
+        }
+        request "ci-harbor-robot" {
+          operation = "update"
+          path      = "secret/data/ci/harbor-robot"
+          data = {
+            data = {
+              username = "robot$ci+builder"
+              password = { eval_type = "string", eval_source = "file", path = "/openbao/seed/harbor-ci-robot-secret" }
+            }
+          }
+        }
       }

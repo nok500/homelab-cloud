@@ -1,0 +1,63 @@
+---
+# The trigger (ADR 0015). The lab can't receive GitHub webhooks (nothing reaches it from the internet), so CI
+# polls: a timer fires every 2 minutes and the Sensor starts a ci-poll workflow, which builds only commits it
+# hasn't built yet (workflowtemplates.yaml).
+apiVersion: argoproj.io/v1alpha1
+kind: EventSource
+metadata:
+  name: poll
+spec:
+  template:
+    container:
+      resources:
+        requests: {cpu: 5m, memory: 32Mi}
+        limits: {memory: 128Mi}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 9731   # the image has no USER: without one it would run as root
+        runAsGroup: 9731
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities: {drop: [ALL]}
+        seccompProfile: {type: RuntimeDefault}
+  calendar:
+    main:
+      interval: 2m
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: poll
+spec:
+  template:
+    serviceAccountName: ci-sensor
+    container:
+      resources:
+        requests: {cpu: 5m, memory: 32Mi}
+        limits: {memory: 128Mi}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 9731   # the image has no USER: without one it would run as root
+        runAsGroup: 9731
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities: {drop: [ALL]}
+        seccompProfile: {type: RuntimeDefault}
+  dependencies:
+    - name: tick
+      eventSourceName: poll
+      eventName: main
+  triggers:
+    - template:
+        name: ci-poll
+        argoWorkflow:
+          operation: submit
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              metadata:
+                generateName: ci-poll-
+              spec:
+                workflowTemplateRef:
+                  name: ci-poll

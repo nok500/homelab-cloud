@@ -35,6 +35,7 @@ rows=(
   "Harbor local admin (break-glass, CLI)|https://registry.lab.macpro|admin|$(seed harbor-admin-password)"
   "Grafana (SSO: Sign in with Keycloak)|https://grafana.lab.macpro|labadmin|$(seed keycloak-labadmin-password)"
   "Grafana local admin (break-glass)|https://grafana.lab.macpro|admin|$(seed monitoring-grafana-admin-password)"
+  "Argo Workflows (SSO: Login, Keycloak)|https://workflows.lab.macpro|labadmin|$(seed keycloak-labadmin-password)"
   "ntfy (alerts, topic lab-alerts)|https://ntfy.lab.macpro|labadmin|$(seed monitoring-ntfy-labadmin-password)"
   "Garage UI|https://s3.lab.macpro:3909|admin|$(garage garage_ui_admin_password)"
 )

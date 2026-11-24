@@ -1,0 +1,29 @@
+---
+# Namespace ci (k8s/platform/ci, ADR 0015): the CI trigger (EventBus, EventSource, Sensor), the WorkflowTemplates,
+# the Harbor push login and BuildKit's config. After Argo Workflows and Argo Events (wave 6) bring the CRDs.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ci
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:nok500/lab.git
+    targetRevision: main
+    path: homelab-cloud/k8s/platform/ci
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ci
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 10
+      backoff: {duration: 10s, factor: 2, maxDuration: 2m}

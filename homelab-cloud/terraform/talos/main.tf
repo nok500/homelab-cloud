@@ -121,6 +121,22 @@ locals {
     filesystem:
       type: xfs
     EOT
+    ,
+    # Rootless BuildKit (ADR 0015). Talos ships user.max_user_namespaces = 0, which blocks user namespaces for
+    # everyone, root included; 11255 is the kernel's usual default for this size of machine. Ordinary pods still
+    # can't create one: their RuntimeDefault seccomp blocks unshare/clone(CLONE_NEWUSER) without CAP_SYS_ADMIN.
+    # Only pods that name the Localhost profile below can, and Pod Security keeps that to namespaces at
+    # `baseline` or looser (here: ci). The profile is Docker's default plus the namespace/mount calls
+    # (scripts/seccomp-buildkit.py); Talos writes it to /var/lib/kubelet/seccomp/profiles/.
+    yamlencode({
+      machine = {
+        sysctls = { "user.max_user_namespaces" = "11255" }
+        seccompProfiles = [{
+          name  = "buildkit-rootless.json"
+          value = jsondecode(file("${path.module}/seccomp/buildkit-rootless.json"))
+        }]
+      }
+    }),
   ]
 
   # Control plane only (these kinds are rejected on workers): no built-in CNI (Cilium instead)

@@ -49,6 +49,7 @@ Sizes are **Terraform variables per role**. Defaults follow the owner's request:
 | 2026-11-20 | Before Phase 3: workers 2 → **4 GiB**, `opnsense` 1 → **4 GiB** (operator) | Headroom for the Phase 3 services; from here, bump only on measured pressure (PSI) |
 | 2026-11-23 | Before milestone 7 (Harbor): workers 4 → **10 GiB**, `opnsense` 4 → **3 GiB** (operator: use the host's RAM, keep ~4 GiB for the host OS; llama.cpp runs only on demand) | Worker requests were ~45 % and limits 103–123 % of 4 GiB after Keycloak, with Harbor and Phases 4–5 still to come. OPNsense only routes, so it goes to its documented 3 GB minimum. Lab total 16 → **27 GiB** of 31.3. Applied offline: `make shutdown`, apply, `make start` (an in-place change power-cycles running nodes) |
 | 2026-11-23 | Phase 4 milestone 1 (observability, [ADR 0014](0014-observability.md)): no resize | Adds about 1.8 GiB of requests (Prometheus 768 MiB, Loki 256 MiB, Grafana 192 MiB, Alloy 128 MiB, the rest small) to the ~2.5 GiB per worker already requested, of 9.2 GiB allocatable each |
+| 2026-11-24 | Phase 4 milestone 2 (CI, [ADR 0015](0015-ci-argo-workflows-buildkit.md)): no resize | About 0.5 GiB of always-on requests (Workflows controller 128 MiB, server 64 MiB, Events controller 64 MiB, NATS 96 MiB, EventSource + Sensor 64 MiB), plus 256 MiB per running build (2 GiB limit). CPU is the tighter side: builds request 250m of each worker's 2 vCPU |
 
 ## Consequences
 

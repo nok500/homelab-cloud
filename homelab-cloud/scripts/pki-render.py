@@ -21,6 +21,9 @@ HARBOR_CA = ROOT / "k8s" / "platform" / "harbor" / "secrets" / "lab-root-ca.crt"
 MONITORING_CA = ROOT / "k8s" / "platform" / "monitoring" / "extras" / "lab-root-ca.crt"   # Grafana -> Keycloak, Loki -> Garage (ADR 0014)
 # Argo CD takes the CA for its OIDC issuer only inline (oidc.config rootCA): kept between these markers
 ARGOCD_VALUES = ROOT / "k8s" / "bootstrap" / "argocd" / "values.yaml"
+# ...and so does the Argo Workflows server (server.sso.rootCA, ADR 0015)
+ARGO_WORKFLOWS_VALUES = ROOT / "k8s" / "platform" / "argo-workflows" / "values.yaml"
+CI_CA = ROOT / "k8s" / "platform" / "ci" / "lab-root-ca.crt"   # build pods: push to registry.lab.macpro (ADR 0015)
 MARK_BEGIN, MARK_END = "# BEGIN lab-root-ca (written by scripts/pki-render.py)", "# END lab-root-ca"
 ISSUER = ROOT / "k8s" / "platform" / "certificates" / "step-cluster-issuer.yaml"
 NS = "step-ca"
@@ -108,12 +111,15 @@ def main() -> int:
     MONITORING_CA.write_text(rd("root_ca.crt"))   # Grafana (OIDC to Keycloak) and Loki (Garage S3)
     # ...and for Argo CD's OIDC issuer (sso.lab.macpro, ADR 0012): replace the PEM between the markers,
     # keeping their indentation
-    lines = ARGOCD_VALUES.read_text().splitlines(keepends=True)
-    b = next(i for i, l in enumerate(lines) if l.strip() == MARK_BEGIN)
-    e = next(i for i, l in enumerate(lines) if l.strip() == MARK_END)
-    indent = lines[b][: len(lines[b]) - len(lines[b].lstrip())]
-    pem = [indent + l + "\n" for l in rd("root_ca.crt").strip().splitlines()]
-    ARGOCD_VALUES.write_text("".join(lines[: b + 1] + pem + lines[e:]))
+    for values in (ARGOCD_VALUES, ARGO_WORKFLOWS_VALUES):
+        lines = values.read_text().splitlines(keepends=True)
+        b = next(i for i, l in enumerate(lines) if l.strip() == MARK_BEGIN)
+        e = next(i for i, l in enumerate(lines) if l.strip() == MARK_END)
+        indent = lines[b][: len(lines[b]) - len(lines[b].lstrip())]
+        pem = [indent + l + "\n" for l in rd("root_ca.crt").strip().splitlines()]
+        values.write_text("".join(lines[: b + 1] + pem + lines[e:]))
+    CI_CA.parent.mkdir(parents=True, exist_ok=True)
+    CI_CA.write_text(rd("root_ca.crt"))
     (OUT / "kustomization.yaml").write_text(
         "---\n" + GENERATED + dump(
             {

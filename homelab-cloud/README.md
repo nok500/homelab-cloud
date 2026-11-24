@@ -8,7 +8,9 @@ modules tested against the AWS Emulator.
 
 > Status: **Phase 4 in progress** (CI/CD and observability). Milestone 1 done (2026-11-23, `make verify` 67/67): metrics, logs and alerts: Prometheus +
 > Grafana (Keycloak SSO) at https://grafana.lab.macpro, Loki on Garage, alerts to ntfy at https://ntfy.lab.macpro
-> ([ADR 0014](docs/decisions/0014-observability.md)). Done: Phase 1 VPC + OPNsense
+> ([ADR 0014](docs/decisions/0014-observability.md)). Milestone 2: CI in the cluster: Argo Workflows at
+> https://workflows.lab.macpro (Keycloak SSO) and Argo Events poll GitHub every 2 min; rootless BuildKit builds each
+> new commit and pushes to Harbor project `ci` ([ADR 0015](docs/decisions/0015-ci-argo-workflows-buildkit.md)). Done: Phase 1 VPC + OPNsense
 > ([ADR 0003](docs/decisions/0003-vpc-networking.md)), Phase 2 "EKS": Talos v1.14.6 + Cilium 1.20.5 + Argo CD 3.6.2
 > ([ADR 0005](docs/decisions/0005-eks-on-talos.md)). Phase 3 managed-service equivalents (closed 2026-11-23 by a clean rebuild, `make verify` 59/59): persistent volumes via local-path-provisioner
 > on dedicated worker disks ([ADR 0006](docs/decisions/0006-storage-and-state.md)); TLS everywhere from a private,
@@ -46,7 +48,11 @@ flowchart LR
       db[(CloudNativePG<br/>databases ns)]
       kc[Keycloak SSO<br/>sso.lab.macpro]
       reg[Harbor registry + Trivy<br/>registry.lab.macpro]
-      obs[Prometheus · Grafana · Loki<br/>grafana.lab.macpro<br/>alerts: ntfy.lab.macpro]
+      ci[Argo Workflows + Events<br/>workflows.lab.macpro<br/>rootless BuildKit]
+  ci -. "poll main (https)" .-> gh
+  ci -- "push images" --> reg
+  ci -. "OIDC login" .-> kc
+  obs[Prometheus · Grafana · Loki<br/>grafana.lab.macpro<br/>alerts: ntfy.lab.macpro]
     end
     subgraph data["data subnet 10.10.2.0/24"]
       datanote[reserved]
@@ -101,7 +107,7 @@ make lint     # pre-commit on this lab's files
 make temps    # host CPU temperatures
 make garage   # Garage S3 on the host (Terraform state, backups): deploy/converge, no sudo
 make garage-ui-password  # login for the Garage UI, https://s3.lab.macpro:3909 (user admin)
-make up       # build the lab: VPC + OPNsense, Talos cluster, Cilium, Argo CD, Keycloak, Harbor (~20 min), shown in the TUI; ends with the logins
+make up       # build the lab: VPC + OPNsense, Talos cluster, Cilium, Argo CD, Keycloak, Harbor, CI (~20 min), shown in the TUI; ends with the logins
 make tui      # lab monitor: status, host CPU/RAM/temp, VMs, pods, nodes, Talos dashboard
 make route    # sudo: route 10.10.0.0/16 via OPNsense (make up/start add it when missing)
 make db-restore-test  # point-in-time restore of the demo database from Garage, checked row by row
@@ -114,7 +120,8 @@ make destroy  # tear it down
 ```
 
 Manual one-time steps: [docs/bootstrap.md](docs/bootstrap.md). Design decisions: [docs/decisions/](docs/decisions/).
-Runbooks: [docs/runbooks/](docs/runbooks/) (the TUI: [monitoring.md](docs/runbooks/monitoring.md); Grafana, logs, alerts: [observability.md](docs/runbooks/observability.md)).
+Runbooks: [docs/runbooks/](docs/runbooks/) (the TUI: [monitoring.md](docs/runbooks/monitoring.md); Grafana, logs, alerts: [observability.md](docs/runbooks/observability.md);
+CI: [ci.md](docs/runbooks/ci.md)).
 
 ## Layout
 
@@ -124,4 +131,5 @@ terraform/talos  Talos machine configs / bootstrap   k8s/platform   managed-serv
 terraform/identity  Keycloak realm, users, clients (Argo CD, Harbor)
 terraform/aws    real-AWS-shaped modules             k8s/security   policy, runtime, posture
 apps/            sample service(s)                   k8s/apps       what the pipeline deploys
+ci/smoke         CI smoke image (milestone 2)        k8s/platform/ci  CI trigger + WorkflowTemplates
 ```

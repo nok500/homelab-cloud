@@ -1,0 +1,30 @@
+---
+# Argo Events v1.9.11 (argo-helm chart argo-events 2.4.28): the trigger side of CI (ADR 0015). Only the
+# controller lives here, in namespace argo-events; the EventBus, EventSource and Sensor are in k8s/platform/ci.
+crds:
+  install: true
+  keep: true
+
+configs:
+  jetstream:
+    # The one JetStream version EventBus objects may ask for, pinned by digest (the chart's list starts at
+    # "latest"). NATS 2.10.29 is the chart's own default.
+    versions:
+      - version: 2.10.29
+        natsImage: docker.io/library/nats:2.10.29@sha256:5498ba57b9471840be3d15b033a4eec554d1c02fa6c2cc0ca2d888637f6c6e2f
+        metricsExporterImage: docker.io/natsio/prometheus-nats-exporter:0.14.0@sha256:839c59f6a23473a657f6560c2a14dca9b9ce722a017933a41d071a3c9dd3a7d7
+        configReloaderImage: docker.io/natsio/nats-server-config-reloader:0.14.0@sha256:8c28b75bc416bb068761b19edf9a471bf8e35062bf619ea49c8e22af517e383e
+        startCommand: /nats-server
+
+controller:
+  resources:
+    requests: {cpu: 20m, memory: 64Mi}
+    limits: {memory: 256Mi}
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+# The admission webhook only validates EventBus/EventSource/Sensor objects; Argo CD's sync shows the same errors
+webhook:
+  enabled: false

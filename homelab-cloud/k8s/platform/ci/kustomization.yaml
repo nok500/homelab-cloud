@@ -1,0 +1,27 @@
+---
+# Namespace ci: where CI workflows run (ADR 0015). Argo Workflows (namespace argo) and Argo Events (namespace
+# argo-events) bring the controllers; this is the lab's own part: the trigger (EventBus, a 2-minute
+# calendar EventSource, a Sensor), the WorkflowTemplates, the Harbor push login and BuildKit's config.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ci
+resources:
+  - namespace.yaml
+  - rbac.yaml
+  - rbac-ui.yaml
+  - external-secrets.yaml
+  - eventbus.yaml
+  - trigger.yaml
+  - workflowtemplates.yaml
+secretGenerator:
+  - name: lab-root-ca
+    files:
+      - ca.crt=lab-root-ca.crt   # written by scripts/pki-render.py: BuildKit verifies registry.lab.macpro with it
+    options:
+      disableNameSuffixHash: true
+configMapGenerator:
+  - name: buildkitd
+    files:
+      - buildkitd.toml
+    options:
+      disableNameSuffixHash: true

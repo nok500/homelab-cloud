@@ -1,0 +1,97 @@
+---
+# The Sensor may submit workflows in ci, and nothing else.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ci-sensor
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ci-submit-workflows
+rules:
+  - apiGroups: [argoproj.io]
+    resources: [workflows]
+    verbs: [create, get, list, watch, patch]   # patch: kubectl apply in ci-poll's submit step
+  - apiGroups: [argoproj.io]
+    resources: [workflowtemplates]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-sensor
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ci-submit-workflows
+subjects:
+  - kind: ServiceAccount
+    name: ci-sensor
+    namespace: ci
+---
+# The workflows' own account. The executor (Argo's init/wait containers) reports each step's outputs as a
+# WorkflowTaskResult; ci-poll's submit step also creates the ci-build workflow.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argo-workflow
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argo-workflow-executor
+rules:
+  - apiGroups: [argoproj.io]
+    resources: [workflowtaskresults]
+    verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argo-workflow-executor
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argo-workflow-executor
+subjects:
+  - kind: ServiceAccount
+    name: argo-workflow
+    namespace: ci
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argo-workflow-submit
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ci-submit-workflows
+subjects:
+  - kind: ServiceAccount
+    name: argo-workflow
+    namespace: ci
+---
+# Memoization (ci-poll's submit step): the workflow controller keeps its cache in the ConfigMap
+# ci-submitted-commits. The chart's ClusterRole only reads ConfigMaps; this lets it write them, in ci only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: workflow-controller-memo-cache
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [create, update, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: workflow-controller-memo-cache
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: workflow-controller-memo-cache
+subjects:
+  - kind: ServiceAccount
+    name: argo-workflows-workflow-controller
+    namespace: argo

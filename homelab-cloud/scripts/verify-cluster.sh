@@ -22,6 +22,9 @@
 #  12. Observability: kubectl top (metrics-server, kubelet certificates verified), the monitoring stack ready,
 #      every Prometheus target up (incl. etcd, controller manager, scheduler, Argo CD), a real Grafana SSO login,
 #      logs and Kubernetes events in Loki, Loki's objects in Garage, and a test alert reaching ntfy.
+#  13. CI: Argo Workflows + Argo Events up, user namespaces + the BuildKit seccomp profile on the workers, ns ci
+#      at Pod Security baseline, an ordinary pod still refused a user namespace, the trigger running, a real
+#      Argo Workflows SSO login, and the commit main points at built by rootless BuildKit, pushed and scanned.
 # Waits (bounded) for things that converge after bootstrap, so it can run straight after `make up`.
 set -uo pipefail
 
@@ -390,6 +393,68 @@ else
   bad "alerting: test alert ${ALERT_ID} not seen in ntfy topic lab-alerts"
 fi
 unset NTFY_PW
+
+echo "13. CI (Argo Workflows, Argo Events, rootless BuildKit)"
+check "Argo Workflows controller + server and the Argo Events controller ready" retry 18 10 bash -c '
+  kubectl -n argo rollout status deploy/argo-workflows-workflow-controller --timeout=5s &&
+  kubectl -n argo rollout status deploy/argo-workflows-server --timeout=5s &&
+  kubectl -n argo-events rollout status deploy/argo-events-controller-manager --timeout=5s'
+# Rootless BuildKit's prerequisites on the workers (Talos patch, ADR 0015): user namespaces on, the profile there
+userns_ready() {
+  local ip n=0
+  for ip in $(python3 -c 'import json,sys; [print(v["ip"]) for v in json.load(sys.stdin).values() if v["role"]=="worker"]' <<<"${nodes_json}"); do
+    [[ "$(talosctl -n "${ip}" read /proc/sys/user/max_user_namespaces 2>/dev/null)" -gt 0 ]] &&
+      talosctl -n "${ip}" ls /var/lib/kubelet/seccomp/profiles 2>/dev/null | grep -q buildkit-rootless.json || return 1
+    n=$((n + 1))
+  done
+  ((n > 0))
+}
+check "workers: user namespaces enabled, seccomp profile buildkit-rootless.json installed" userns_ready
+check "namespace ci enforces Pod Security baseline (no privileged build pods possible)" bash -c \
+  '[[ "$(kubectl get ns ci -o jsonpath="{.metadata.labels.pod-security\.kubernetes\.io/enforce}")" == baseline ]]'
+# ...and that this didn't open user namespaces to ordinary pods: RuntimeDefault seccomp still refuses unshare -U
+USERNS_POD='{"apiVersion":"v1","kind":"Pod","metadata":{"name":"verify-userns-'$$'","namespace":"ci"},"spec":{"restartPolicy":"Never",
+  "securityContext":{"runAsNonRoot":true,"runAsUser":65534,"seccompProfile":{"type":"RuntimeDefault"}},
+  "containers":[{"name":"t","image":"'"${REG}/${TEST_REPO}"':1.37.0","command":["sh","-c","unshare -U -r true && echo USERNS-ALLOWED || echo USERNS-BLOCKED"],
+  "securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}}}]}}'
+userns_blocked() {
+  local p="verify-userns-$$" ok=1
+  kubectl apply -f - <<<"${USERNS_POD}" >/dev/null 2>&1 &&
+    kubectl -n ci wait --for=jsonpath='{.status.phase}'=Succeeded "pod/${p}" --timeout=120s >/dev/null 2>&1 &&
+    kubectl -n ci logs "${p}" 2>/dev/null | grep -q USERNS-BLOCKED && ok=0
+  kubectl -n ci delete pod "${p}" --wait=false >/dev/null 2>&1
+  return "${ok}"
+}
+check "an ordinary pod (RuntimeDefault seccomp) still can't create a user namespace" retry 3 10 userns_blocked
+check "trigger: EventBus deployed, EventSource + Sensor running" retry 18 10 bash -c '
+  kubectl -n ci get eventbus default -o jsonpath="{.status.conditions[?(@.type==\"Deployed\")].status}" | grep -q True &&
+  kubectl -n ci get pods -l eventsource-name=poll -o jsonpath="{.items[*].status.phase}" | grep -q Running &&
+  kubectl -n ci get pods -l sensor-name=poll -o jsonpath="{.items[*].status.phase}" | grep -q Running'
+argo_sso() {
+  SSO_USER=labadmin SSO_PASSWORD="$(SOPS_AGE_KEY_FILE="${ROOT}/.cache/age/key.txt" sops --decrypt \
+    --extract '["data"]["keycloak-labadmin-password"]' "${ROOT}/k8s/platform/openbao/seed.enc.yaml" | base64 -d)" \
+    "${ROOT}/scripts/argo-workflows-sso-test.py" "${ROOT_CA}"
+}
+if out="$(retry 6 10 argo_sso 2>&1)"; then ok "Argo Workflows SSO: ${out##*$'\n'}"; else bad "Argo Workflows SSO login as labadmin: ${out##*$'\n'}"; fi
+# The whole path for the commit main points at now (what CI sees): a poll within 2 min submits ci-build-<sha>,
+# rootless BuildKit builds ci/smoke from GitHub at that commit and pushes it; Harbor scans it on push.
+# Up to 15 min: a poll, the build pod's image pulls, the build itself, then Trivy.
+HEAD_SHA="$(git ls-remote https://github.com/nok500/lab.git refs/heads/main 2>/dev/null | cut -f1)"
+HARBOR_ADMIN="$(SOPS_AGE_KEY_FILE="${ROOT}/.cache/age/key.txt" sops --decrypt \
+  --extract '["data"]["harbor-admin-password"]' "${ROOT}/k8s/platform/openbao/seed.enc.yaml" | base64 -d)"
+built() {
+  [[ "$(kubectl -n ci get workflow "ci-build-${HEAD_SHA}" -o jsonpath='{.status.phase}' 2>/dev/null)" == Succeeded ]] &&
+    hapi "https://${REG}/api/v2.0/projects/ci/repositories/smoke/artifacts/${HEAD_SHA}" -o /dev/null
+}
+check "CI built main (${HEAD_SHA:0:12}): workflow ci-build-<sha> Succeeded, ${REG}/ci/smoke:<sha> in Harbor" \
+  retry 90 10 built
+smoke_scanned() {
+  hapi "https://${REG}/api/v2.0/projects/ci/repositories/smoke/artifacts/${HEAD_SHA}?with_scan_overview=true" | python3 -c '
+import json,sys; o=(json.load(sys.stdin).get("scan_overview") or {})
+sys.exit(next((v.get("scan_status") for v in o.values()), "none") != "Success")'
+}
+check "Harbor scanned it on push (project ci: scan on push)" retry 30 10 smoke_scanned
+unset HARBOR_ADMIN
 
 echo
 printf '%d passed, %d failed\n' "${pass}" "${fail}"

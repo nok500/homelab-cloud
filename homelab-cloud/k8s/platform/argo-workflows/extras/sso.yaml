@@ -1,0 +1,37 @@
+---
+# What the Argo Workflows server needs beside its chart (ADR 0015).
+# The OIDC client (Keycloak client argo-workflows, terraform/identity): client id + secret from OpenBao.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: argo-server-sso
+  namespace: argo
+spec:
+  refreshInterval: 1h
+  secretStoreRef: {kind: ClusterSecretStore, name: openbao}
+  target:
+    name: argo-server-sso
+  dataFrom:
+    - extract:
+        key: argo/sso
+---
+# SSO RBAC: a login whose groups claim holds argo-workflows-admins acts as this service account. No other
+# rule and no user-default-login account exist, so any other Keycloak user is refused.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argo-admin
+  namespace: argo
+  annotations:
+    workflows.argoproj.io/rbac-rule: "'argo-workflows-admins' in groups"
+    workflows.argoproj.io/rbac-rule-precedence: "1"
+---
+# The server reads the account's token from this Secret (server.sso.rbac.secretWhitelist)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argo-admin.service-account-token
+  namespace: argo
+  annotations:
+    kubernetes.io/service-account.name: argo-admin
+type: kubernetes.io/service-account-token

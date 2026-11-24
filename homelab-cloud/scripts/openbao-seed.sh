@@ -11,6 +11,7 @@
 #                    the Garage key for bucket harbor; keycloak-harbor-client-secret for its OIDC client
 #   monitoring-*     observability (ADR 0014): Grafana's admin password, keycloak-grafana-client-secret, the
 #                    Garage key for bucket loki, ntfy's Alertmanager token and labadmin's ntfy password + hash
+#   ci               CI (ADR 0015): keycloak-argo-workflows-client-secret, harbor-ci-robot-secret (the push robot)
 # OpenBao reads these files only on first start (self-init), then everything comes from OpenBao via
 # External Secrets. Re-run after adding a seed value, then commit + push.
 set -euo pipefail
@@ -145,6 +146,12 @@ else:
     data["monitoring-ntfy-labadmin-hash"] = b64(ntfy_hash("labadmin", pw).encode())
 data["monitoring-ntfy-alertmanager-hash"] = old.get("monitoring-ntfy-alertmanager-hash") or \
     b64(ntfy_hash("alertmanager", secrets.token_urlsafe(24)).encode())
+# CI (ADR 0015): the Argo Workflows OIDC client secret, and the Harbor CI robot's secret. Harbor wants 8-128
+# characters with an upper-case letter, a lower-case letter and a digit; token_urlsafe alone can miss one.
+data["keycloak-argo-workflows-client-secret"] = old.get("keycloak-argo-workflows-client-secret") or \
+    b64(secrets.token_urlsafe(32).encode())
+data["harbor-ci-robot-secret"] = old.get("harbor-ci-robot-secret") or \
+    b64((secrets.token_hex(20) + "Ci" + str(secrets.randbelow(10))).encode())
 print("---")
 print(yaml.dump({"apiVersion": "v1", "kind": "Secret",
                  "metadata": {"name": "openbao-seed", "namespace": "openbao"},

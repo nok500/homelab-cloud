@@ -1,0 +1,97 @@
+---
+# Argo Workflows v4.1.6 (argo-helm chart argo-workflows 2.0.18), the lab's CodeBuild/CodePipeline engine (ADR 0015).
+# Controller + server in namespace argo; workflows run only in namespace ci (k8s/platform/ci).
+images:
+  pullPolicy: IfNotPresent
+
+crds:
+  install: true
+  keep: true
+  # Minified CRDs as plain chart resources: the full ones come from a pre-install hook Job, and the lab avoids
+  # hook Jobs under Argo CD (ADR 0014 did the same for the Prometheus operator)
+  full: false
+
+controller:
+  workflowNamespaces: [ci]
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {memory: 512Mi}
+  metricsConfig:
+    enabled: true
+  serviceMonitor:
+    enabled: true
+  # Every workflow: pods go once they succeed (their logs are in Loki through Alloy; failed ones stay for
+  # debugging), and finished workflows go after a day (polls after 10 min, see k8s/platform/ci)
+  workflowDefaults:
+    spec:
+      podGC:
+        strategy: OnPodSuccess
+        deleteDelayDuration: 60s
+      ttlStrategy:
+        secondsAfterSuccess: 86400
+        secondsAfterFailure: 259200
+
+# The wait/init containers Argo adds to every workflow pod: Pod Security `restricted`, like everything in ci
+# except the build step itself
+executor:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 8737
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities: {drop: [ALL]}
+    seccompProfile: {type: RuntimeDefault}
+
+# The account workflows run as (argo-workflow) and its Role live in k8s/platform/ci with the namespace: the chart
+# would create them in ci (wave 6) before the ci app creates the namespace (wave 7)
+workflow:
+  serviceAccount:
+    create: false
+  rbac:
+    create: false
+
+server:
+  # TLS ends at the lab Gateway (wildcard certificate from step-ca); the Gateway talks plain HTTP to the server
+  secure: false
+  authModes: [sso]
+  resources:
+    requests: {cpu: 20m, memory: 64Mi}
+    limits: {memory: 256Mi}
+  httproute:
+    enabled: true
+    hostnames: [workflows.lab.macpro]
+    parentRefs:
+      - name: lab
+        namespace: gateway
+        sectionName: https
+  # Keycloak, realm lab, client argo-workflows (terraform/identity). Its secret: argo-server-sso, an
+  # ExternalSecret from OpenBao secret/argo/sso (extras/). Group argo-workflows-admins -> service account
+  # argo-admin (extras/); anyone else who logs in gets nothing.
+  sso:
+    enabled: true
+    issuer: https://sso.lab.macpro/realms/lab
+    clientId: {name: argo-server-sso, key: client-id}
+    clientSecret: {name: argo-server-sso, key: client-secret}
+    redirectUrl: https://workflows.lab.macpro/oauth2/callback
+    scopes: [groups]
+    sessionExpiry: 10h
+    rbac:
+      enabled: true
+      secretWhitelist: [argo-admin.service-account-token]
+    # The server fetches the issuer's discovery document over https: it has to trust the lab CA.
+    # scripts/pki-render.py keeps the block in sync with k8s/platform/step-ca/config/root_ca.crt.
+    rootCA: |
+      # BEGIN lab-root-ca (written by scripts/pki-render.py)
+      -----BEGIN CERTIFICATE-----
+      MIIBsTCCAVigAwIBAgIQQPc0VioSENUqHkMUfCUxLzAKBggqhkjOPQQDAjAgMR4w
+      HAYDVQQDExVob21lbGFiLWNsb3VkIFJvb3QgQ0EwHhcNMjYxMTIwMTQzNzMyWhcN
+      MzYxMTE3MTQzNzMyWjAgMR4wHAYDVQQDExVob21lbGFiLWNsb3VkIFJvb3QgQ0Ew
+      WTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAARl6T5S1dfc3hWJ5AniywpofQsD0CSN
+      CbPP+Rqcb93iTjdjfGWe5afMvvNc1qXVLrd68pu1i3j1rDC7iu92dukPo3QwcjAO
+      BgNVHQ8BAf8EBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBATAdBgNVHQ4EFgQUWK7Z
+      xDRZKfAcWxFxboDIzY6xnmQwLQYDVR0eAQH/BCMwIaAfMAyCCmxhYi5tYWNwcm8w
+      D4INY2x1c3Rlci5sb2NhbDAKBggqhkjOPQQDAgNHADBEAiBprIcvvrtU/XkoxPvA
+      5LMY6Y/zFD6Q9j/xT9ZnGGT4/gIgKEGy4B8l5eauQUkh8mHqkDRtfSYCMRAPa3w6
+      +kjlVLk=
+      -----END CERTIFICATE-----
+      # END lab-root-ca

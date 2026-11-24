@@ -54,3 +54,26 @@ variable "grafana_client_secret" {
   type        = string
   sensitive   = true
 }
+
+variable "argo_workflows_url" {
+  type    = string
+  default = "https://workflows.lab.macpro"
+}
+
+variable "argo_workflows_client_secret" {
+  description = "OIDC client secret shared with the Argo Workflows server (seed keycloak-argo-workflows-client-secret, ADR 0015)."
+  type        = string
+  sensitive   = true
+}
+
+variable "harbor_admin_password" {
+  description = "Harbor's local admin (seed harbor-admin-password, ADR 0013): the provider manages the CI project with it."
+  type        = string
+  sensitive   = true
+}
+
+variable "harbor_ci_robot_secret" {
+  description = "Secret of the CI push robot (seed harbor-ci-robot-secret, ADR 0015); the build pods log in with it."
+  type        = string
+  sensitive   = true
+}
