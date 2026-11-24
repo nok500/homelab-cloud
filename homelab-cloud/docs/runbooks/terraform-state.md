@@ -49,6 +49,8 @@ scripts/tf.sh host plan                              # check it matches reality
 
 ## When it's down
 
-`make up`, `make verify`, `make start` and the TUI need the backend (they read node IPs from state). Check the
-containers (`docker compose ps` above), then `make garage` to converge. Nothing in the cluster depends on
+`make up`, `make verify`, `make start` and the TUI need the backend (they read node IPs from state). `make up`
+and `make start` start the containers themselves if they're stopped (`scripts/garage-ensure.sh`); a timeout
+at `terraform init` (`dial tcp 192.168.8.207:3900: i/o timeout`) means they're down. Check the containers
+(`docker compose ps` above), then `make garage` to converge. Nothing in the cluster depends on
 Garage until CNPG backups (milestone 5), and those just retry.

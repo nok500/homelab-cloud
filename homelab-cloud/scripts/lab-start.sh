@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Start the lab VMs after `make shutdown`, in dependency order: OPNsense (DHCP/DNS/NAT for everything), then
-# the control plane, then the workers. Also run it after a host power-on: the VMs autostart, but only this
+# the control plane, then the workers. Garage on the host comes first: the Terraform state this script reads lives there. Also run it after a host power-on: the VMs autostart, but only this
 # script wakes the databases that `make shutdown` hibernated. Safe to run on a lab that's already up.
 set -uo pipefail
 
@@ -9,6 +9,9 @@ VIRSH=(virsh -c qemu+ssh://macpro/system)
 WAN_IP="$(cat "${ROOT}/.cache/host/opnsense-wan.ip" 2>/dev/null)"
 
 start() { [[ "$("${VIRSH[@]}" domstate "$1" 2>/dev/null | head -1)" == "running" ]] && echo "  $1: already running" || { "${VIRSH[@]}" start "$1" >/dev/null && echo "  $1: started"; }; }
+
+echo ">> Garage S3 on the host (Terraform state, backups)"
+"${ROOT}/scripts/garage-ensure.sh" || exit 1
 
 echo ">> OPNsense"
 start opnsense

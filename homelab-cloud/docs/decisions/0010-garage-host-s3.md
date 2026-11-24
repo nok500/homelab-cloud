@@ -9,7 +9,7 @@
 | Piece | Choice | Why |
 |---|---|---|
 | Garage | **v2.5.0** (2026-10-24), pinned by digest, single node (`replication_factor = 1`), LMDB with a metadata snapshot every 6 h | Small (about 13 MiB of RAM), S3-compatible, and the snapshot is the recovery path after an unclean host stop |
-| How it runs | A **Docker Compose** project (`host/garage/compose.yaml`), `restart: unless-stopped`, deployed by `make garage` over SSH | Docker is already on the host and systemd-managed (enabled at boot), and your user is in the `docker` group: **no sudo, no unit file**. ADR 0006 said "Docker + systemd"; Docker's restart policy under the systemd-managed daemon gives that without a unit of our own. Not Terraform: the stack holding the state can't keep its own state in itself |
+| How it runs | A **Docker Compose** project (`host/garage/compose.yaml`), `restart: always` (was `unless-stopped`, see the 2026-11-24 amendment), deployed by `make garage` over SSH | Docker is already on the host and systemd-managed (enabled at boot), and your user is in the `docker` group: **no sudo, no unit file**. ADR 0006 said "Docker + systemd"; Docker's restart policy under the systemd-managed daemon gives that without a unit of our own. Not Terraform: the stack holding the state can't keep its own state in itself |
 | TLS | **Caddy 2.11.9** in front, on `192.168.8.207:3900` only. Certificate for `s3.lab.macpro` + `192.168.8.207`, signed **offline** by the lab intermediate CA (ADR 0007), 1 year, renewed by `make garage` with under 30 days left | State holds secrets (Talos machine secrets, the OPNsense root password) and CNPG backups hold data, so neither should cross the LAN in clear. Terraform (Go) and the root trusted on voodoo verify it with no extra flags. step-ca isn't used: it lives inside the cluster this state builds |
 | Name | `s3.lab.macpro` → `192.168.8.207`: an exact AdGuard rewrite, which wins over `*.lab.macpro` → the Gateway | Pods resolve it too (OPNsense forwards to AdGuard), which milestone 5 needs |
 | Exposure | Only the S3 port is published, and only on the LAN address. Garage's admin API and RPC stay on the Compose network; the CLI runs through `docker compose exec` | Nothing to attack but S3 with SigV4 keys |
@@ -59,3 +59,13 @@ same name and certificate as S3, a second port, so no DNS change.
   this one staying as break-glass.
 - `make garage` now restarts only the container whose own files changed. Adding the UI restarted Garage too:
   a few seconds without S3, which CNPG's archiving retries through.
+
+## Amendment (2026-11-24): restart: always, and make start/up start Garage first
+
+After a host power-off (00:03) and boot (10:25), Docker restored only the containers with `restart: always`
+(glances, dozzle) and left Garage, Caddy and the UI stopped (`unless-stopped`), although nothing had stopped them
+by hand. `make up` then failed at `terraform init` with an S3 timeout. Two changes:
+- all three services use **`restart: always`**
+- **`scripts/garage-ensure.sh`** runs first in `make start` and in `make init` (so `make up`): if
+  https://s3.lab.macpro:3900 doesn't give a real S3 answer, it runs `docker compose up -d` in `~/homelab-garage`
+  over SSH and waits up to 60 s. It only starts what's deployed; `make garage` stays the way to deploy or converge.

@@ -65,6 +65,7 @@ images: ## Download + verify VM base images into .cache/images
 
 .PHONY: init
 init:
+	scripts/garage-ensure.sh   # Terraform state lives in Garage on the host: started first, waited for
 	$(TF_HOST) init -input=false
 	$(TF_TALOS) init -input=false
 	$(TF_IDENTITY) init -input=false
