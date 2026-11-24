@@ -77,7 +77,9 @@ server:
     sessionExpiry: 10h
     rbac:
       enabled: true
-      secretWhitelist: [argo-admin.service-account-token]
+      # The only Secrets the server may read (with its own `sso` key): the SSO client login and argo-admin's token.
+      # The chart grants nothing else, so argo-server-sso must be listed or the server exits at start.
+      secretWhitelist: [argo-server-sso, argo-admin.service-account-token]
     # The server fetches the issuer's discovery document over https: it has to trust the lab CA.
     # scripts/pki-render.py keeps the block in sync with k8s/platform/step-ca/config/root_ca.crt.
     rootCA: |

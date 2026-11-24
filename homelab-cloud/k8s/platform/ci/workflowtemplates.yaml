@@ -70,6 +70,10 @@ spec:
         cache:
           configMap:
             name: ci-submitted-commits
+      # Argo's init container writes the manifest to /tmp, but with the executor's read-only root and no /tmp mount
+      # of its own it fails ("open /tmp/manifest.yaml: read-only file system"). Give it main's /tmp volume.
+      podSpecPatch: |
+        initContainers: [{name: init, volumeMounts: [{name: tmp-dir-argo, mountPath: /tmp, subPath: "0"}]}]
       resource:
         action: apply
         manifest: |
@@ -147,6 +151,9 @@ spec:
         env:
           - {name: BUILDKITD_FLAGS, value: --oci-worker-no-process-sandbox --config=/etc/buildkit/buildkitd.toml}
           - {name: DOCKER_CONFIG, value: /home/user/.docker}
+          # buildkitd.toml's CA covers the daemon's own registry calls, but buildctl fetches the push token from
+          # Harbor's /service/token itself: system roots + the lab CA, for both (Docker Hub pulls keep working)
+          - {name: SSL_CERT_DIR, value: /etc/ssl/certs:/etc/lab-ca}
         volumeMounts:
           - {name: buildkitd-config, mountPath: /etc/buildkit, readOnly: true}
           - {name: lab-ca, mountPath: /etc/lab-ca, readOnly: true}

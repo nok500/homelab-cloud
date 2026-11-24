@@ -48,7 +48,9 @@ kubectl -n ci get cm ci-submitted-commits -o jsonpath='{.data}' | head -c 400   
 | `RUN` step fails: `unable to join session keyring: operation not permitted` | The profile on the node is older than the ENOSYS keyring rule: regenerate (`scripts/seccomp-buildkit.py`), `scripts/tf.sh talos apply` |
 | Pod rejected: `violates PodSecurity "baseline"` | Something asked for more than baseline (privileged, Unconfined seccomp, unmasked /proc). The build pod must use `seccompProfile: Localhost` and `--oci-worker-no-process-sandbox` |
 | Push fails: `401`/`denied` | Robot secret differs between Harbor and OpenBao: `secret/ci/harbor-robot` vs the seed `harbor-ci-robot-secret`; bump `secret_wo_version` in `terraform/identity` and `make identity` |
-| Push fails: `x509: certificate signed by unknown authority` | BuildKit isn't reading `/etc/buildkit/buildkitd.toml` or the `lab-root-ca` Secret: `kubectl -n ci get cm buildkitd secret lab-root-ca` |
+| Push fails: `x509: certificate signed by unknown authority` | On `registry.lab.macpro/v2/...`: BuildKit isn't reading `/etc/buildkit/buildkitd.toml` or the `lab-root-ca` Secret (`kubectl -n ci get cm buildkitd secret lab-root-ca`). On `.../service/token`: that's buildctl, which only trusts `SSL_CERT_DIR` (`/etc/ssl/certs:/etc/lab-ca` in `ci-build`) |
+| `ci-poll`'s submit step: `open /tmp/manifest.yaml: read-only file system` | The `podSpecPatch` that mounts `/tmp` into Argo's `init` container is missing from `ci-poll` |
+| Argo server exits: `secrets "argo-server-sso" is forbidden` | The chart only lets the server read Secrets in `sso.rbac.secretWhitelist`: `argo-server-sso` must be listed |
 | No `ci-poll` workflows appear | `kubectl -n ci logs -l sensor-name=poll` and `-l eventsource-name=poll`; the EventBus: `kubectl -n ci get eventbus default -o yaml` (status conditions) |
 | Polls succeed but nothing builds | The commit is already in `ci-submitted-commits` (see *Rebuild a commit*) |
 | UI login: "permission denied" / empty | Not in `argo-workflows-admins`, or the `argo-admin.service-account-token` Secret is missing in `argo` |

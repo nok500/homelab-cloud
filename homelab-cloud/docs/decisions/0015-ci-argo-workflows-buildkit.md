@@ -47,6 +47,16 @@ namespace `ci` stays at Pod Security **`baseline`** and no pod in the lab needs 
 Tested live before deploying (2026-11-24, throwaway namespace): the rootless build pulled busybox and ran a `RUN`
 step (root inside the user namespace, uid 1000 outside); a `RuntimeDefault` pod got `unshare: Operation not permitted`.
 
+## First deploy (2026-11-24): three fixes
+
+- **Argo server exited at start**: the chart lets it read only the Secrets named in `server.sso.rbac.secretWhitelist`
+  (plus its own `sso`), so `argo-server-sso` is listed there with `argo-admin.service-account-token`.
+- **`ci-poll`'s submit step failed**: Argo's `init` container writes the manifest to `/tmp`, which the read-only
+  executor root doesn't allow; a `podSpecPatch` gives it `main`'s `/tmp` volume.
+- **Push failed with `x509` on Harbor's `/service/token`**: `buildkitd.toml`'s CA covers the daemon's registry calls,
+  but `buildctl` fetches the token itself. `SSL_CERT_DIR=/etc/ssl/certs:/etc/lab-ca` trusts the lab CA on top of
+  the system roots. A hand-submitted build of `82b1c8a` then pushed `ci/smoke:82b1c8a…`.
+
 ## Secrets (seed → OpenBao → External Secrets)
 
 `keycloak-argo-workflows-client-secret` → `secret/argo/sso` (Secret `argo/argo-server-sso`);
